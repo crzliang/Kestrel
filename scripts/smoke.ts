@@ -13,6 +13,7 @@ import { onRequestGet as trendGet } from '../edge-functions/v1/stats/trend';
 import { onRequestGet as geoGet } from '../edge-functions/v1/stats/geo';
 import { onRequestGet as sourcesGet } from '../edge-functions/v1/stats/sources';
 import { onRequestGet as pagesGet } from '../edge-functions/v1/stats/pages';
+import { onRequestGet as ipsGet } from '../edge-functions/v1/stats/ips';
 import { onRequestGet as devicesGet } from '../edge-functions/v1/stats/devices';
 import { onRequestGet as behaviorGet } from '../edge-functions/v1/stats/behavior';
 import {
@@ -242,6 +243,55 @@ async function testGeo(): Promise<void> {
   );
   assert(fromHeader.country === 'JP', 'header country normalized to JP');
 
+  assert(
+    resolveClientGeo(
+      new Request('http://localhost/', {
+        headers: { 'x-kestrel-country': 'HK' },
+      }),
+    ).country === 'HK',
+    'HK recognized as 中国香港',
+  );
+  assert(
+    resolveClientGeo(
+      new Request('http://localhost/', {
+        headers: { 'x-kestrel-country': 'MO' },
+      }),
+    ).country === 'MO',
+    'MO recognized as 中国澳门',
+  );
+  assert(
+    resolveClientGeo(
+      new Request('http://localhost/', {
+        headers: { 'x-kestrel-country': 'TW' },
+      }),
+    ).country === 'TW',
+    'TW recognized as 中国台湾',
+  );
+  assert(
+    resolveClientGeo(
+      new Request('http://localhost/', {
+        headers: { 'x-kestrel-country': 'CN' },
+      }),
+    ).country === 'CN',
+    'CN recognized as 中国大陆',
+  );
+
+  // EdgeOne-style: country CN but region says Hong Kong
+  const hkViaRegion = resolveClientGeo(
+    Object.assign(
+      new Request('http://localhost/'),
+      {
+        eo: {
+          geo: {
+            countryCodeAlpha2: 'CN',
+            regionName: 'Hong Kong',
+          },
+        },
+      },
+    ) as Request,
+  );
+  assert(hkViaRegion.country === 'HK', 'CN+region Hong Kong → HK');
+
   const res = await geoGet({
     request: new Request('http://localhost/v1/stats/geo?siteId=smoke'),
     params: {},
@@ -277,6 +327,7 @@ async function testBehaviorDetail(): Promise<void> {
   assert(behavior.status === 200, 'behavior returns 200');
   const bBody = (await behavior.json()) as {
     events: Array<{
+      ip: string;
       ipHash: string;
       source: string;
       path: string;
@@ -285,7 +336,8 @@ async function testBehaviorDetail(): Promise<void> {
     }>;
   };
   assert(bBody.events.length === 2, `behavior events=2 (got ${bBody.events.length})`);
-  assert(!!bBody.events[0]?.ipHash, 'event has ipHash (not raw IP)');
+  assert(!!bBody.events[0]?.ipHash, 'event has ipHash');
+  assert(bBody.events[0]?.ip === '203.0.113.10', `event has client ip (got ${bBody.events[0]?.ip})`);
   assert(
     bBody.events.some((e) => e.source === 'search'),
     'behavior includes search source',
@@ -297,6 +349,48 @@ async function testBehaviorDetail(): Promise<void> {
   assert(
     bBody.events.every((e) => e.device.type === 'mobile'),
     'iPhone UA parsed as mobile',
+  );
+
+  const behaviorAll = await behaviorGet({
+    request: new Request(
+      'http://localhost/v1/stats/behavior?siteId=smoke&range=all&limit=10',
+    ),
+    params: {},
+    next: async () => new Response('not used'),
+  });
+  const allBody = (await behaviorAll.json()) as { events: unknown[] };
+  assert(
+    allBody.events.length === 2,
+    `range=all keeps events (got ${allBody.events.length})`,
+  );
+
+  const past = await behaviorGet({
+    request: new Request(
+      'http://localhost/v1/stats/behavior?siteId=smoke&startDate=2020-01-01&endDate=2020-01-07&limit=10',
+    ),
+    params: {},
+    next: async () => new Response('not used'),
+  });
+  const pastBody = (await past.json()) as {
+    events: unknown[];
+    startDate?: string;
+    endDate?: string;
+  };
+  assert(pastBody.events.length === 0, 'past custom range returns 0 events');
+  assert(pastBody.startDate === '2020-01-01', 'custom startDate echoed');
+  assert(pastBody.endDate === '2020-01-07', 'custom endDate echoed');
+
+  const week = await behaviorGet({
+    request: new Request(
+      'http://localhost/v1/stats/behavior?siteId=smoke&days=7&limit=10',
+    ),
+    params: {},
+    next: async () => new Response('not used'),
+  });
+  const weekBody = (await week.json()) as { events: unknown[] };
+  assert(
+    weekBody.events.length === 2,
+    `days=7 includes today events (got ${weekBody.events.length})`,
   );
 
   const sources = await sourcesGet({
@@ -329,6 +423,24 @@ async function testBehaviorDetail(): Promise<void> {
   const pBody = (await pages.json()) as { pages: Record<string, number> };
   assert(pBody.pages['/home'] === 1, 'page /home counted');
   assert(pBody.pages['/about'] === 1, 'page /about counted');
+
+  const ips = await ipsGet({
+    request: new Request('http://localhost/v1/stats/ips?siteId=smoke'),
+    params: {},
+    next: async () => new Response('not used'),
+  });
+  const ipBody = (await ips.json()) as {
+    ips: Record<string, number>;
+    ranking: Array<{ ip: string; pv: number }>;
+  };
+  assert(
+    (ipBody.ips['203.0.113.10'] ?? 0) === 2,
+    `ip 203.0.113.10=2 (got ${ipBody.ips['203.0.113.10']})`,
+  );
+  assert(
+    ipBody.ranking[0]?.ip === '203.0.113.10',
+    'hot ip ranking includes tracked IP',
+  );
 
   const devices = await devicesGet({
     request: new Request('http://localhost/v1/stats/devices?siteId=smoke'),

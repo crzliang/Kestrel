@@ -45,7 +45,21 @@ const REF_HOSTS = [
   '(direct)',
 ];
 
-const COUNTRIES = ['CN', 'US', 'JP', 'SG', 'DE', 'GB', 'KR', 'AU', 'IN', 'BR'];
+const COUNTRIES = [
+  'CN',
+  'HK',
+  'MO',
+  'TW',
+  'US',
+  'JP',
+  'SG',
+  'DE',
+  'GB',
+  'KR',
+  'AU',
+  'IN',
+  'BR',
+];
 const OS_LIST = ['iOS', 'Android', 'Mac OS', 'Windows', 'Linux'];
 const BROWSERS = [
   { name: 'Safari', version: '17.5' },
@@ -93,6 +107,15 @@ function hash12(seed) {
   return h.toString(16).padStart(8, '0').slice(0, 12);
 }
 
+function fakeIp(seed) {
+  const h = hash12(seed);
+  const a = parseInt(h.slice(0, 2), 16);
+  const b = parseInt(h.slice(2, 4), 16);
+  const c = parseInt(h.slice(4, 6), 16);
+  const d = parseInt(h.slice(6, 8), 16);
+  return `${(a % 223) + 1}.${b}.${c}.${d}`;
+}
+
 function buildSiteBundle(site, idx) {
   const now = Date.now();
   const base = 80 + idx * 40;
@@ -121,6 +144,9 @@ function buildSiteBundle(site, idx) {
   const countries = {};
   for (const c of COUNTRIES) countries[c] = rand(2, 60 + idx * 5);
   countries.CN = rand(40, 160);
+  countries.HK = rand(8, 40);
+  countries.TW = rand(8, 40);
+  countries.MO = rand(3, 18);
   countries.US = rand(20, 90);
 
   const devices = {
@@ -140,7 +166,7 @@ function buildSiteBundle(site, idx) {
     pv: devices.browser[b.name] ?? rand(8, 80),
   })).sort((a, b) => b.pv - a.pv);
 
-  const events = Array.from({ length: 48 }, (_, i) => {
+  const events = Array.from({ length: 96 }, (_, i) => {
     const path = pick(PATHS);
     const ref = pick(REF_HOSTS);
     const host = ref === '(direct)' ? '' : ref;
@@ -148,7 +174,12 @@ function buildSiteBundle(site, idx) {
     const country = pick(COUNTRIES);
     const deviceType = pick(TYPES);
     const browserInfo = pick(BROWSERS);
-    const ts = now - i * rand(40_000, 180_000);
+    // Spread across ~30 days so 7d / 30d / all filters differ
+    const dayOffset = Math.floor((i / 96) * 30);
+    const withinDay = rand(0, 86_400_000 - 1);
+    const ts = now - dayOffset * 86_400_000 - withinDay;
+    // Reuse a small IP pool so overview "热门 IP" has meaningful ranking
+    const ip = fakeIp(`ip-pool-${site.id}-${i % 12}`);
     return {
       timestamp: ts - 1000,
       receivedAt: ts,
@@ -160,7 +191,8 @@ function buildSiteBundle(site, idx) {
       referrerHost: host,
       source,
       country,
-      ipHash: hash12(`ip-${site.id}-${i}`),
+      ip,
+      ipHash: hash12(ip),
       uaFingerprint: hash12(`ua-${site.id}-${browserInfo.name}-${browserInfo.version}`),
       screenWidth: deviceType === 'mobile' ? pick([390, 414, 375]) : pick([1440, 1920, 1280]),
       device: {
@@ -170,7 +202,21 @@ function buildSiteBundle(site, idx) {
         type: deviceType,
       },
     };
-  });
+  }).sort((a, b) => b.receivedAt - a.receivedAt);
+
+  const ips = {};
+  for (const ev of events) {
+    if (ev.eventType !== 'pageview') continue;
+    // Today-ish for overview panel (last ~36h counts as "today" mock)
+    if (now - ev.receivedAt > 36 * 3_600_000) continue;
+    ips[ev.ip] = (ips[ev.ip] ?? 0) + 1;
+  }
+  // Ensure panel isn't empty
+  if (Object.keys(ips).length === 0) {
+    for (const ev of events.slice(0, 24)) {
+      ips[ev.ip] = (ips[ev.ip] ?? 0) + 1;
+    }
+  }
 
   const online = rand(3, 28);
   const pvToday = trendPoints[trendPoints.length - 1]?.pv ?? base;
@@ -215,6 +261,15 @@ function buildSiteBundle(site, idx) {
         .sort((a, b) => b.pv - a.pv),
       ts: now,
     },
+    ips: {
+      siteId: site.id,
+      date: daysAgo(0),
+      ips,
+      ranking: Object.entries(ips)
+        .map(([ip, pv]) => ({ ip, pv }))
+        .sort((a, b) => b.pv - a.pv),
+      ts: now,
+    },
     devices: {
       siteId: site.id,
       date: daysAgo(0),
@@ -230,7 +285,7 @@ function buildSiteBundle(site, idx) {
     behavior: {
       siteId: site.id,
       events,
-      note: 'ipHash is a truncated SHA-256 of client IP; raw IP is never stored',
+      note: 'Events include client IP; ipHash is used for rate limiting',
       ts: now,
     },
   };

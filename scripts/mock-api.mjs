@@ -60,6 +60,7 @@ function ensureSiteBundle(site) {
     geo: { siteId: site.id, date: emptyTrend.points.at(-1).date, countries: {}, ranking: [], ts: Date.now() },
     sources: { siteId: site.id, date: emptyTrend.points.at(-1).date, hosts: {}, sources: {}, ranking: [], ts: Date.now() },
     pages: { siteId: site.id, date: emptyTrend.points.at(-1).date, pages: {}, ranking: [], ts: Date.now() },
+    ips: { siteId: site.id, date: emptyTrend.points.at(-1).date, ips: {}, ranking: [], ts: Date.now() },
     devices: {
       siteId: site.id,
       date: emptyTrend.points.at(-1).date,
@@ -70,7 +71,7 @@ function ensureSiteBundle(site) {
     behavior: {
       siteId: site.id,
       events: [],
-      note: 'ipHash is a truncated SHA-256 of client IP; raw IP is never stored',
+      note: 'Events include client IP; ipHash is used for rate limiting',
       ts: Date.now(),
     },
   };
@@ -163,7 +164,7 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    const statsMatch = pathname.match(/^\/v1\/stats\/(realtime|trend|geo|sources|pages|devices|behavior)$/);
+    const statsMatch = pathname.match(/^\/v1\/stats\/(realtime|trend|geo|sources|pages|ips|devices|behavior)$/);
     if (method === 'GET' && statsMatch) {
       const kind = statsMatch[1];
       const siteId = url.searchParams.get('siteId');
@@ -191,13 +192,50 @@ const server = createServer(async (req, res) => {
         data.startDate = points[0]?.date ?? null;
         data.endDate = points[points.length - 1]?.date ?? null;
       }
-      if (kind === 'pages') {
+      if (kind === 'pages' || kind === 'ips') {
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '20')));
         data.ranking = (data.ranking || []).slice(0, limit);
       }
       if (kind === 'behavior') {
-        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '50')));
-        data.events = (data.events || []).slice(0, limit);
+        const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') ?? '100')));
+        let events = data.events || [];
+        const range = url.searchParams.get('range');
+        const startDate = url.searchParams.get('startDate');
+        const endDate = url.searchParams.get('endDate');
+        const eventTs = (e) => e.receivedAt || e.timestamp || 0;
+
+        if (startDate && endDate) {
+          const startMs = Date.parse(`${startDate}T00:00:00.000Z`);
+          const endMs = Date.parse(`${endDate}T23:59:59.999Z`);
+          events = events.filter((e) => {
+            const ts = eventTs(e);
+            return ts >= startMs && ts <= endMs;
+          });
+          data.startDate = startDate;
+          data.endDate = endDate;
+        } else if (range === 'all') {
+          data.startDate = null;
+          data.endDate = null;
+        } else {
+          const days = Math.min(
+            365,
+            Math.max(1, Number(url.searchParams.get('days') ?? '7')),
+          );
+          const end = new Date();
+          end.setUTCHours(23, 59, 59, 999);
+          const start = new Date(end.getTime() - (days - 1) * 86_400_000);
+          start.setUTCHours(0, 0, 0, 0);
+          const startMs = start.getTime();
+          const endMs = end.getTime();
+          events = events.filter((e) => {
+            const ts = eventTs(e);
+            return ts >= startMs && ts <= endMs;
+          });
+          data.startDate = start.toISOString().slice(0, 10);
+          data.endDate = end.toISOString().slice(0, 10);
+        }
+
+        data.events = events.slice(0, limit);
       }
       return send(res, 200, data);
     }

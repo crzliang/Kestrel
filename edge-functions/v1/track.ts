@@ -15,6 +15,7 @@ import {
   rateKey,
   deviceDayKey,
   sourceDayKey,
+  ipDayKey,
 } from '../lib/storage';
 import { parseUserAgent } from '../lib/parser';
 import { resolveClientGeo } from '../lib/geo';
@@ -62,7 +63,8 @@ export async function onRequestPost({
     }
     throw e;
   }
-  const ipHash = await sha256Short(clientIp(request));
+  const ip = clientIp(request);
+  const ipHash = await sha256Short(ip);
   const hits = (await kvGetSoftTTL<number>(rateKey(event.siteId, ipHash))) ?? 0;
   if (hits > 120) {
     return jsonResponse({ error: 'rate_limited' }, 429, corsHeaders);
@@ -91,6 +93,7 @@ export async function onRequestPost({
       refHost || '(direct)',
     );
     await kvIncrFlatField(pageDayKey(event.siteId, event.timestamp), path);
+    await kvIncrFlatField(ipDayKey(event.siteId, event.timestamp), ip);
 
     const devKey = deviceDayKey(event.siteId, event.timestamp);
     const devices = (await kvGetJson<{
@@ -133,6 +136,7 @@ export async function onRequestPost({
     referrerHost: refHost,
     source,
     country: geo.country,
+    ip,
     ipHash,
     uaFingerprint,
     screenWidth: event.screenWidth,
@@ -143,7 +147,7 @@ export async function onRequestPost({
   await appendRawEvent(event.siteId, {
     ...enriched,
     siteId: event.siteId,
-    // keep UA for offline re-parse; never persist raw IP
+    // keep UA for offline re-parse
     ua,
   });
 

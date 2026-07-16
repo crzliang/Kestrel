@@ -1063,6 +1063,13 @@ a.brand:hover {
 }
 
 /* —— Behavior page —— */
+.behavior-header-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .behavior-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1139,22 +1146,9 @@ a.brand:hover {
   border-radius: 12px;
   background: var(--bg-elevated);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: visible;
   animation: map-fade-up 0.55s ease both;
   animation-delay: 100ms;
-}
-
-.behavior-stage-glow {
-  pointer-events: none;
-  position: absolute;
-  inset: -35% 20% auto;
-  height: 42%;
-  background: radial-gradient(
-    ellipse at 40% 0%,
-    var(--accent-2-soft),
-    transparent 65%
-  );
-  z-index: 0;
 }
 
 .behavior-toolbar {
@@ -1219,102 +1213,44 @@ a.brand:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.behavior-feed {
+.behavior-table-wrap {
   position: relative;
   z-index: 1;
-  list-style: none;
-  margin: 0;
-  padding: 8px 12px 16px;
-  max-height: min(68vh, 720px);
-  overflow: auto;
+  padding: 4px 8px 12px;
 }
 
-.behavior-empty {
-  padding: 48px 16px;
-  text-align: center;
+.behavior-table .ant-spin-nested-loading,
+.behavior-table .ant-spin-container,
+.behavior-table .ant-table-wrapper {
+  overflow: visible;
+}
+
+.behavior-table .ant-pagination {
+  display: flex !important;
+  margin: 12px 8px 4px !important;
+}
+
+.behavior-table .behavior-path {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+  padding: 0;
+}
+
+.behavior-table .behavior-time {
+  display: inline-block;
+  max-width: 100%;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.behavior-item {
-  display: flex;
-  gap: 12px;
-  padding: 4px 0;
-  animation: map-fade-up 0.4s ease both;
-}
-
-.behavior-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 16px;
-  padding-top: 22px;
-  flex-shrink: 0;
-}
-
-.behavior-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--line-strong);
-  box-shadow: 0 0 0 3px var(--bg-elevated);
-  z-index: 1;
-}
-
-.behavior-dot.type-pageview {
-  background: var(--accent);
-}
-
-.behavior-dot.type-click {
-  background: var(--accent-2);
-}
-
-.behavior-dot.type-custom {
-  background: #d97706;
-}
-
-.behavior-item:not(:last-child) .behavior-rail::after {
-  content: '';
-  flex: 1;
-  width: 1px;
-  margin-top: 4px;
-  background: var(--line);
-  min-height: 12px;
-}
-
-.behavior-card {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.behavior-card:hover {
-  background: var(--nav-hover);
-  border-color: var(--line);
-}
-
-.behavior-card-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.behavior-path-block {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.behavior-type {
-  flex-shrink: 0;
+.behavior-table .behavior-type {
+  display: inline-block;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -1323,141 +1259,65 @@ a.brand:hover {
   border-radius: 6px;
   background: var(--code-bg);
   color: var(--muted);
+  white-space: nowrap;
 }
 
-.behavior-type.type-pageview {
+.behavior-table .behavior-type.type-pageview {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.behavior-type.type-click {
+.behavior-table .behavior-type.type-click {
   background: var(--accent-2-soft);
   color: var(--accent-2);
 }
 
-.behavior-path {
-  font-size: 0.92rem;
-  font-weight: 500;
-  color: var(--ink);
-  background: transparent;
-  padding: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.behavior-time {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.behavior-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.behavior-pill {
+.behavior-table .behavior-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 7px;
   background: var(--code-bg);
   color: var(--ink);
   font-size: 0.76rem;
   line-height: 1.3;
-}
-
-.behavior-pill .mono {
-  color: var(--muted);
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-size: 0.7rem;
-}
-
-.behavior-pill .sep {
-  color: var(--muted);
-  opacity: 0.7;
-}
-
-.behavior-pill .ver {
-  color: var(--muted);
-}
-
-.behavior-pill.host {
-  min-width: 0;
-}
-
-.behavior-pill.host > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.behavior-pill.source-direct {
-  background: var(--code-bg);
-}
-
-.behavior-pill.source-search {
+.behavior-table .behavior-pill.source-search {
   background: var(--accent-2-soft);
   color: var(--accent-2);
 }
 
-.behavior-pill.source-social {
+.behavior-table .behavior-pill.source-social {
   background: rgba(14, 165, 233, 0.12);
   color: #0284c7;
 }
 
-[data-theme='dark'] .behavior-pill.source-social {
+[data-theme='dark'] .behavior-table .behavior-pill.source-social {
   background: rgba(56, 189, 248, 0.14);
   color: #7dd3fc;
 }
 
-.behavior-pill.source-referral {
+.behavior-table .behavior-pill.source-referral {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.behavior-pill.source-email {
+.behavior-table .behavior-pill.source-email {
   background: rgba(217, 119, 6, 0.12);
   color: #b45309;
 }
 
-[data-theme='dark'] .behavior-pill.source-email {
+[data-theme='dark'] .behavior-table .behavior-pill.source-email {
   background: rgba(251, 191, 36, 0.14);
   color: #fbbf24;
 }
 
-.behavior-pill.device {
+.behavior-code-muted {
   color: var(--muted);
-}
-
-.behavior-ids {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  color: var(--muted);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
   font-size: 0.72rem;
-}
-
-.behavior-ids code {
-  font-size: 0.72rem;
-  padding: 0.05em 0.3em;
-}
-
-.behavior-note {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  padding: 10px 16px 14px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.75rem;
-  line-height: 1.45;
 }
 
 @media (max-width: 768px) {
@@ -1501,15 +1361,5 @@ a.brand:hover {
   .behavior-count {
     margin-left: 0;
     width: 100%;
-  }
-
-  .behavior-feed {
-    max-height: none;
-  }
-
-  .behavior-card-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
   }
 }

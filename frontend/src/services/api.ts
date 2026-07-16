@@ -5,6 +5,7 @@ import type {
   PageStats,
   DeviceStats,
   BehaviorStats,
+  IpStats,
   Site,
   CreateSiteInput,
   UpdateSiteInput,
@@ -96,16 +97,40 @@ export function fetchPages(siteId: string, limit = 20) {
   );
 }
 
+export function fetchIps(siteId: string, limit = 20) {
+  return getJson<IpStats>(
+    `/v1/stats/ips?siteId=${encodeURIComponent(siteId)}&limit=${limit}`,
+  );
+}
+
 export function fetchDevices(siteId: string) {
   return getJson<DeviceStats>(
     `/v1/stats/devices?siteId=${encodeURIComponent(siteId)}`,
   );
 }
 
-export function fetchBehavior(siteId: string, limit = 50) {
-  return getJson<BehaviorStats>(
-    `/v1/stats/behavior?siteId=${encodeURIComponent(siteId)}&limit=${limit}`,
-  );
+export function fetchBehavior(
+  siteId: string,
+  query: number | (TrendQuery & { limit?: number }) = 100,
+) {
+  const params = new URLSearchParams({ siteId });
+  if (typeof query === 'number') {
+    params.set('limit', String(query));
+    params.set('days', '7');
+  } else {
+    params.set('limit', String(query.limit ?? 100));
+    if (query.all) {
+      params.set('range', 'all');
+    } else if (query.startDate && query.endDate) {
+      params.set('startDate', query.startDate);
+      params.set('endDate', query.endDate);
+    } else if (query.days != null) {
+      params.set('days', String(query.days));
+    } else {
+      params.set('days', '7');
+    }
+  }
+  return getJson<BehaviorStats>(`/v1/stats/behavior?${params.toString()}`);
 }
 
 export function fetchSites() {

@@ -45,6 +45,62 @@ export const ISO_TO_MAP_NAME: Record<string, string> = {
   XX: 'Unknown',
 };
 
+/** ISO 3166-1 alpha-2 → Chinese display names */
+export const ISO_TO_ZH_NAME: Record<string, string> = {
+  CN: '中国大陆',
+  US: '美国',
+  JP: '日本',
+  KR: '韩国',
+  GB: '英国',
+  DE: '德国',
+  FR: '法国',
+  CA: '加拿大',
+  AU: '澳大利亚',
+  IN: '印度',
+  BR: '巴西',
+  RU: '俄罗斯',
+  SG: '新加坡',
+  HK: '中国香港',
+  TW: '中国台湾',
+  MO: '中国澳门',
+  TH: '泰国',
+  VN: '越南',
+  MY: '马来西亚',
+  ID: '印度尼西亚',
+  PH: '菲律宾',
+  NL: '荷兰',
+  IT: '意大利',
+  ES: '西班牙',
+  SE: '瑞典',
+  NO: '挪威',
+  FI: '芬兰',
+  DK: '丹麦',
+  CH: '瑞士',
+  AT: '奥地利',
+  BE: '比利时',
+  PL: '波兰',
+  PT: '葡萄牙',
+  IE: '爱尔兰',
+  NZ: '新西兰',
+  MX: '墨西哥',
+  AR: '阿根廷',
+  ZA: '南非',
+  AE: '阿联酋',
+  SA: '沙特阿拉伯',
+  TR: '土耳其',
+  IL: '以色列',
+  XX: '未知',
+};
+
+/** English map name for ECharts geo matching. */
 export function countryMapName(iso: string): string {
   return ISO_TO_MAP_NAME[iso.toUpperCase()] ?? iso;
+}
+
+/** UI label: Chinese name + ISO code, e.g. "中国大陆 CN". */
+export function countryLabel(iso: string): string {
+  const code = iso.toUpperCase();
+  const zh = ISO_TO_ZH_NAME[code];
+  if (zh) return `${zh} ${code}`;
+  return code;
 }

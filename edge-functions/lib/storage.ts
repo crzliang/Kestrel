@@ -278,6 +278,10 @@ export function pageDayKey(siteId: string, ts = Date.now()): string {
   return `page_day_${siteId}_${utcYmd(ts)}`;
 }
 
+export function ipDayKey(siteId: string, ts = Date.now()): string {
+  return `ip_day_${siteId}_${utcYmd(ts)}`;
+}
+
 export function recentKey(siteId: string): string {
   return `recent_${siteId}`;
 }
@@ -324,7 +328,9 @@ export type BehaviorEvent = {
   referrerHost: string;
   source: string;
   country: string;
-  /** SHA-256 short hash of IP — never store raw IP by default */
+  /** Client IP as seen by the edge */
+  ip: string;
+  /** SHA-256 short hash of IP — used for rate limiting */
   ipHash: string;
   /** Short hash of User-Agent — browser fingerprint */
   uaFingerprint: string;
@@ -337,7 +343,7 @@ export type BehaviorEvent = {
   };
 };
 
-const RECENT_LIMIT = 100;
+const RECENT_LIMIT = 500;
 
 export async function pushRecentEvent(
   siteId: string,
@@ -351,8 +357,8 @@ export async function pushRecentEvent(
 
 export async function getRecentEvents(
   siteId: string,
-  limit = 50,
+  limit = 100,
 ): Promise<BehaviorEvent[]> {
   const list = (await kvGetJson<BehaviorEvent[]>(recentKey(siteId))) ?? [];
-  return list.slice(0, Math.min(100, Math.max(1, limit)));
+  return list.slice(0, Math.min(RECENT_LIMIT, Math.max(1, limit)));
 }

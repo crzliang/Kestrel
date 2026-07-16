@@ -7,7 +7,7 @@ import { fetchGeo } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
 import { countryCentroid } from '../utils/geoCentroids';
-import { countryMapName } from '../utils/geoNames';
+import { countryLabel, countryMapName } from '../utils/geoNames';
 import type { GeoStats } from '@kestrel/shared';
 
 const WORLD_GEO_URL =
@@ -265,11 +265,11 @@ export default function MapPage() {
         <div className="map-metric map-metric-top">
           <span className="map-metric-label">热度最高</span>
           <span className="map-metric-value">
-            {top ? countryMapName(top.country) : '—'}
+            {top ? countryLabel(top.country) : '—'}
           </span>
           {top ? (
             <span className="map-metric-sub">
-              {top.country} · {formatPv(top.pv)} PV
+              {formatPv(top.pv)} PV
             </span>
           ) : null}
         </div>
@@ -326,9 +326,8 @@ export default function MapPage() {
                   <div className="map-rank-body">
                     <div className="map-rank-row">
                       <span className="map-rank-name">
-                        {countryMapName(row.country)}
+                        {countryLabel(row.country)}
                       </span>
-                      <span className="map-rank-code">{row.country}</span>
                       <span className="map-rank-pv">{row.pv}</span>
                     </div>
                     <div className="map-rank-bar">

@@ -46,6 +46,14 @@ export type PageStats = {
   ts: number;
 };
 
+export type IpStats = {
+  siteId: string;
+  date: string;
+  ips: Record<string, number>;
+  ranking: Array<{ ip: string; pv: number }>;
+  ts: number;
+};
+
 export type DeviceStats = {
   siteId: string;
   date: string;
@@ -79,6 +87,9 @@ export type BehaviorEvent = {
   referrerHost: string;
   source: string;
   country: string;
+  /** Client IP as seen by the edge (may be proxy-facing). */
+  ip: string;
+  /** SHA-256 short hash of IP — used for rate limiting */
   ipHash: string;
   /** Short hash of User-Agent — browser fingerprint, not raw UA */
   uaFingerprint: string;
@@ -94,6 +105,8 @@ export type BehaviorEvent = {
 export type BehaviorStats = {
   siteId: string;
   events: BehaviorEvent[];
+  startDate?: string | null;
+  endDate?: string | null;
   note: string;
   ts: number;
 };

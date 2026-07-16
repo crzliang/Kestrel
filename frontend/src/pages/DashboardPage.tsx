@@ -13,11 +13,17 @@ import {
   fetchTrend,
   fetchPages,
   fetchSources,
+  fetchIps,
   type TrendPoint,
 } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
-import type { RealtimeStats, PageStats, SourceStats } from '@kestrel/shared';
+import type {
+  RealtimeStats,
+  PageStats,
+  SourceStats,
+  IpStats,
+} from '@kestrel/shared';
 
 function hostLabel(host: string) {
   return !host || host === '(direct)' ? '直接访问' : host;
@@ -34,6 +40,7 @@ export default function DashboardPage() {
   const [points, setPoints] = useState<TrendPoint[]>([]);
   const [pages, setPages] = useState<PageStats | null>(null);
   const [sources, setSources] = useState<SourceStats | null>(null);
+  const [ips, setIps] = useState<IpStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,19 +52,21 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const [rt, trend, pageRes, sourceRes] = await Promise.all([
+        const [rt, trend, pageRes, sourceRes, ipRes] = await Promise.all([
           fetchRealtime(siteId),
           fetchTrend(siteId, trendQuery).catch(() => ({
             points: [] as TrendPoint[],
           })),
-          fetchPages(siteId, 8).catch(() => null),
+          fetchPages(siteId, 10).catch(() => null),
           fetchSources(siteId).catch(() => null),
+          fetchIps(siteId, 10).catch(() => null),
         ]);
         if (!cancelled) {
           setRealtime(rt);
           setPoints(trend.points);
           setPages(pageRes);
           setSources(sourceRes);
+          setIps(ipRes);
           setError(null);
         }
       } catch (e) {
@@ -191,7 +200,7 @@ export default function DashboardPage() {
         </Card>
 
         <Row gutter={[16, 16]} className="equal-cards-row">
-          <Col xs={24} lg={12}>
+          <Col xs={24} lg={8}>
             <Card className="chart-card equal-card" bordered title="热门路径">
               <div className="equal-card-body">
                 <Table
@@ -208,7 +217,7 @@ export default function DashboardPage() {
               </div>
             </Card>
           </Col>
-          <Col xs={24} lg={12}>
+          <Col xs={24} lg={8}>
             <Card className="chart-card equal-card" bordered title="流量来源">
               <div className="equal-card-body">
                 <Table
@@ -229,6 +238,28 @@ export default function DashboardPage() {
                           </span>
                         </span>
                       ),
+                    },
+                    { title: 'Views', dataIndex: 'pv', width: 72 },
+                  ]}
+                />
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} lg={8}>
+            <Card className="chart-card equal-card" bordered title="热门 IP">
+              <div className="equal-card-body">
+                <Table
+                  className="utility-table"
+                  size="small"
+                  pagination={false}
+                  rowKey="ip"
+                  dataSource={(ips?.ranking ?? []).slice(0, 10)}
+                  columns={[
+                    {
+                      title: 'IP',
+                      dataIndex: 'ip',
+                      ellipsis: true,
+                      render: (ip: string) => <code>{ip}</code>,
                     },
                     { title: 'Views', dataIndex: 'pv', width: 72 },
                   ]}
