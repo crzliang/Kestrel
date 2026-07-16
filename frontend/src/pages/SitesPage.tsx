@@ -6,19 +6,20 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Space,
   Table,
   Typography,
   message,
   Popconfirm,
 } from 'antd';
-import { PlusOutlined, CopyOutlined } from '@ant-design/icons';
+import { PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import TrackingSnippet from '../components/TrackingSnippet';
 import {
   createSite,
   deleteSite,
-  trackingSnippet,
   updateSite,
 } from '../services/api';
 import { useSiteStore } from '../store/site';
@@ -39,7 +40,11 @@ export default function SitesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Site | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [form] = Form.useForm<FormValues>();
+  const watchedName = Form.useWatch('name', form);
+  const watchedDomain = Form.useWatch('domain', form);
 
   useEffect(() => {
     void refreshSites().catch((e) =>
@@ -47,10 +52,15 @@ export default function SitesPage() {
     );
   }, [refreshSites]);
 
-  const snippet = useMemo(
-    () => (siteId ? trackingSnippet(siteId) : ''),
-    [siteId],
-  );
+  const pagedSites = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sites.slice(start, start + pageSize);
+  }, [sites, page, pageSize]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sites.length / pageSize) || 1);
+    if (page > maxPage) setPage(maxPage);
+  }, [sites.length, pageSize, page]);
 
   const openCreate = () => {
     setEditing(null);
@@ -110,20 +120,11 @@ export default function SitesPage() {
     }
   };
 
-  const copySnippet = async () => {
-    try {
-      await navigator.clipboard.writeText(snippet);
-      message.success('埋点代码已复制');
-    } catch {
-      message.error('复制失败');
-    }
-  };
-
   return (
     <div className="page sites-page">
       <PageHeader
         title="站点管理"
-        description="在此创建、编辑站点与复制埋点代码。回到数据预览：点击左侧具体站点。"
+        description="创建与编辑站点；在编辑弹窗中复制埋点代码。点击左侧站点可查看数据。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建站点
@@ -148,7 +149,7 @@ export default function SitesPage() {
               className="utility-table"
               loading={loading}
               rowKey="id"
-              dataSource={sites}
+              dataSource={pagedSites}
               pagination={false}
               columns={[
                 {
@@ -207,21 +208,25 @@ export default function SitesPage() {
               ]}
             />
           </div>
-        </Card>
-
-        <Card className="chart-card sites-snippet-card" bordered title="当前站点埋点代码">
-          <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-            将以下代码放入网站 <code>&lt;head&gt;</code> 或页脚。Site ID：
-            <code>{siteId}</code>
-          </Typography.Paragraph>
-          <pre className="snippet-box">{snippet}</pre>
-          <Button icon={<CopyOutlined />} onClick={() => void copySnippet()}>
-            复制代码
-          </Button>
+          <div className="sites-pagination">
+            <Pagination
+              current={page}
+              pageSize={pageSize}
+              total={sites.length}
+              showSizeChanger
+              pageSizeOptions={[10, 20, 50]}
+              showTotal={(total) => `共 ${total} 个站点`}
+              onChange={(nextPage, nextSize) => {
+                setPage(nextPage);
+                setPageSize(nextSize);
+              }}
+            />
+          </div>
         </Card>
       </div>
 
       <Modal
+        className="site-edit-modal"
         title={editing ? '编辑站点' : '新建站点'}
         open={open}
         onCancel={() => setOpen(false)}
@@ -229,6 +234,7 @@ export default function SitesPage() {
         confirmLoading={saving}
         destroyOnClose
         okText="保存"
+        width={editing ? 640 : 480}
       >
         <Form form={form} layout="vertical" requiredMark="optional">
           {!editing && (
@@ -257,6 +263,17 @@ export default function SitesPage() {
             <Input placeholder="blog.example.com" />
           </Form.Item>
         </Form>
+
+        {editing ? (
+          <div className="site-edit-snippet">
+            <TrackingSnippet
+              compact
+              siteId={editing.id}
+              siteName={watchedName || editing.name}
+              siteDomain={watchedDomain || editing.domain}
+            />
+          </div>
+        ) : null}
       </Modal>
     </div>
   );
