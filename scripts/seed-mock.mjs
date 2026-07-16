@@ -312,11 +312,11 @@ writeFileSync(join(outDir, 'sites.json'), JSON.stringify({ sites, total: sites.l
 const accounts = [
   {
     id: 'acct_admin',
-    username: 'admin',
+    username: (process.env.KESTREL_ADMIN_USERNAME || 'admin').trim().toLowerCase(),
     displayName: '管理员',
     role: 'admin',
     totpEnabled: false,
-    passwordHash: hashPassword('admin123'),
+    passwordHash: hashPassword(process.env.KESTREL_ADMIN_PASSWORD || 'admin123'),
     createdAt: now - 86_400_000,
     updatedAt: now - 86_400_000,
   },
@@ -359,4 +359,8 @@ writeFileSync(
 
 console.log(`Seeded mock data → ${outDir}`);
 console.log(`Sites: ${sites.map((s) => s.id).join(', ')}`);
-console.log('Default login: admin / admin123');
+console.log(
+  `Default login: ${(process.env.KESTREL_ADMIN_USERNAME || 'admin').trim().toLowerCase()} / ${
+    process.env.KESTREL_ADMIN_PASSWORD ? '(from KESTREL_ADMIN_PASSWORD)' : 'admin123'
+  }`,
+);

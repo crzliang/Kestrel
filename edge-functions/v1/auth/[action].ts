@@ -11,6 +11,7 @@ import type { EventContext } from '../../lib/types';
 
 export async function onRequestPost({
   request,
+  env,
 }: EventContext): Promise<Response> {
   const url = new URL(request.url);
   const action = url.pathname.replace(/\/+$/, '').split('/').pop();
@@ -81,7 +82,7 @@ export async function onRequestPost({
   }
 
   try {
-    const result = await login(data);
+    const result = await login(data, env as Record<string, unknown> | undefined);
     return jsonResponse(result, 200, corsHeaders);
   } catch (e) {
     const err = e as Error & { status?: number };

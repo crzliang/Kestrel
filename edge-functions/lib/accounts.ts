@@ -1,4 +1,5 @@
 import type { Account, AccountRecord, AccountRole } from '@kestrel/shared';
+import { getDefaultAdminConfig } from './env';
 import { hashPassword, verifyPassword } from './password';
 import { getKv, kvGetJson, kvPutJson } from './storage';
 import {
@@ -88,19 +89,22 @@ export async function listAccounts(): Promise<Account[]> {
   return out.sort((a, b) => a.createdAt - b.createdAt);
 }
 
-export async function ensureDefaultAdmin(): Promise<Account[]> {
+export async function ensureDefaultAdmin(
+  env?: Record<string, unknown> | null,
+): Promise<Account[]> {
   const existing = await listAccounts();
   if (existing.length > 0) return existing;
 
+  const boot = getDefaultAdminConfig(env);
   const now = Date.now();
   const id = 'acct_admin';
   const record: AccountRecord = {
     id,
-    username: 'admin',
+    username: boot.username,
     displayName: '管理员',
     role: 'admin',
     totpEnabled: false,
-    passwordHash: await hashPassword('admin123'),
+    passwordHash: await hashPassword(boot.password),
     createdAt: now,
     updatedAt: now,
   };
@@ -128,13 +132,16 @@ export type LoginResult =
   | { token: string; account: Account; expiresAt: number }
   | { requiresTotp: true; challengeToken: string };
 
-export async function login(input: {
-  username?: string;
-  password?: string;
-  challengeToken?: string;
-  totpCode?: string;
-}): Promise<LoginResult> {
-  await ensureDefaultAdmin();
+export async function login(
+  input: {
+    username?: string;
+    password?: string;
+    challengeToken?: string;
+    totpCode?: string;
+  },
+  env?: Record<string, unknown> | null,
+): Promise<LoginResult> {
+  await ensureDefaultAdmin(env);
 
   // Step 2: challenge + TOTP
   if (input.challengeToken) {

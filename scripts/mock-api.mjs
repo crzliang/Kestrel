@@ -188,14 +188,18 @@ function ensureDefaultAdmin() {
   const doc = loadAccounts();
   if (doc.accounts.length > 0) return doc;
   const now = Date.now();
+  const username = (process.env.KESTREL_ADMIN_USERNAME || 'admin')
+    .trim()
+    .toLowerCase();
+  const password = process.env.KESTREL_ADMIN_PASSWORD || 'admin123';
   doc.accounts = [
     {
       id: 'acct_admin',
-      username: 'admin',
+      username,
       displayName: '管理员',
       role: 'admin',
       totpEnabled: false,
-      passwordHash: hashPassword('admin123'),
+      passwordHash: hashPassword(password),
       createdAt: now,
       updatedAt: now,
     },
@@ -632,6 +636,9 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
+  const user = (process.env.KESTREL_ADMIN_USERNAME || 'admin').trim().toLowerCase();
   console.log(`Mock API http://127.0.0.1:${port}  (data: ${mockDir})`);
-  console.log('Default login: admin / admin123');
+  console.log(
+    `Default login: ${user} / ${process.env.KESTREL_ADMIN_PASSWORD ? '(from KESTREL_ADMIN_PASSWORD)' : 'admin123'}`,
+  );
 });

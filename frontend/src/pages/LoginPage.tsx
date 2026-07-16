@@ -188,7 +188,9 @@ export default function LoginPage() {
           </Form>
         )}
         {!challengeToken ? (
-          <p className="login-hint">默认账号 admin / admin123（首次部署自动创建）</p>
+          <p className="login-hint">
+            首次部署使用环境变量配置的管理员账号登录（默认用户名 admin）
+          </p>
         ) : null}
       </div>
     </div>

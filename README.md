@@ -49,9 +49,12 @@ npm test                # 本地冒烟：track → realtime/trend + 脚本体积
 
 1. 控制台创建 Pages 项目，绑定 KV 变量名 `kestrel_kv`。
 2. Blob 命名空间使用 `kestrel-blob`（首次 `getStore` 自动创建）。
-3. 安装 CLI：`npm i -g edgeone`，在仓库根目录执行 `edgeone pages deploy`（按控制台构建目录指向 `frontend/dist`）。
+3. 在 Edge Functions / Pages 环境变量中配置首次管理员账号（仅在尚无账号时生效）：
+   - `KESTREL_ADMIN_PASSWORD`（必填建议）：默认登录密码
+   - `KESTREL_ADMIN_USERNAME`（可选，默认 `admin`）
+4. 安装 CLI：`npm i -g edgeone`，在仓库根目录执行 `edgeone pages deploy`（按控制台构建目录指向 `frontend/dist`）。
 
-本地无 KV/Blob 绑定时，边缘函数内置内存回退，便于联调类型与路由。
+本地无 KV/Blob 绑定时，边缘函数内置内存回退，便于联调类型与路由。本地 Mock / seed 同样读取上述环境变量（未设置时密码回落为 `admin123`）。
 
 ## 文档
 
