@@ -69,13 +69,18 @@ export default function DevicesPage() {
     };
   }, [siteId]);
 
-  const ranking = data?.ranking ?? { os: [], browser: [], type: [] };
+  const ranking = data?.ranking ?? {
+    os: [],
+    browser: [],
+    type: [],
+    fingerprints: [],
+  };
 
   return (
     <div className="page">
       <PageHeader
         title="设备分析"
-        description="今日操作系统、浏览器与设备类型分布。"
+        description="今日操作系统、浏览器与设备类型分布；明细含版本与 UA 指纹。"
       />
       {error && (
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 16 }} />
@@ -110,17 +115,24 @@ export default function DevicesPage() {
         <Card
           className="chart-card"
           bordered
-          title="浏览器明细"
+          title="流量明细"
           style={{ marginTop: 16 }}
         >
           <Table
             className="utility-table"
             size="small"
             pagination={false}
-            rowKey="name"
-            dataSource={ranking.browser}
+            rowKey="fingerprint"
+            dataSource={ranking.fingerprints}
             columns={[
-              { title: '浏览器', dataIndex: 'name' },
+              { title: '浏览器', dataIndex: 'browser' },
+              { title: '版本', dataIndex: 'version', width: 140 },
+              {
+                title: '指纹',
+                dataIndex: 'fingerprint',
+                width: 140,
+                render: (fp: string) => <code>{fp}</code>,
+              },
               { title: 'PV', dataIndex: 'pv', width: 80 },
             ]}
           />

@@ -127,7 +127,9 @@ export default function BehaviorPage() {
                 key: 'device',
                 width: 200,
                 render: (_: unknown, r: BehaviorEvent) =>
-                  `${r.device.type} · ${r.device.os} · ${r.device.browser}`,
+                  `${r.device.type} · ${r.device.os} · ${r.device.browser}${
+                    r.device.version ? ` ${r.device.version}` : ''
+                  }`,
               },
               {
                 title: '访客',

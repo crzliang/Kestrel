@@ -3,6 +3,8 @@ import UAParser from 'ua-parser-js';
 export type DeviceInfo = {
   os: string;
   browser: string;
+  /** Browser version from UA, e.g. "126.0.0.0" */
+  version: string;
   type: 'desktop' | 'mobile' | 'tablet' | 'unknown';
 };
 
@@ -18,6 +20,7 @@ export function parseUserAgent(ua: string): DeviceInfo {
   return {
     os: result.os.name ?? 'Unknown',
     browser: result.browser.name ?? 'Unknown',
+    version: result.browser.version ?? 'Unknown',
     type,
   };
 }

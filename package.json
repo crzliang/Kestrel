@@ -11,6 +11,10 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @kestrel/frontend",
+    "dev:mock": "npm run seed:mock && node scripts/mock-api.mjs",
+    "dev:all": "npm run seed:mock && npx concurrently -k -n api,web -c green,cyan \"node scripts/mock-api.mjs\" \"npm run dev -w @kestrel/frontend\"",
+    "seed:mock": "node scripts/seed-mock.mjs",
+    "mock:api": "node scripts/mock-api.mjs",
     "dev:tracker": "npm run dev -w @kestrel/tracking-script",
     "build": "npm run build -w @kestrel/shared && npm run build -w @kestrel/tracking-script && npm run build -w @kestrel/frontend",
     "build:tracker": "npm run build -w @kestrel/tracking-script",
@@ -20,6 +24,7 @@
     "test:ci": "npm run build -w @kestrel/shared && npm run build:tracker && npm run typecheck && npm test"
   },
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "tsx": "^4.19.0"
   },
   "engines": {

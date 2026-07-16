@@ -71,7 +71,20 @@ async function testParser(): Promise<void> {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   );
   assert(desktop.browser === 'Chrome', `browser=Chrome (got ${desktop.browser})`);
+  assert(desktop.version.startsWith('126'), `version~126 (got ${desktop.version})`);
   assert(desktop.type === 'desktop', `type=desktop (got ${desktop.type})`);
+
+  const firefox = parseUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0',
+  );
+  assert(firefox.browser === 'Firefox', `browser=Firefox (got ${firefox.browser})`);
+  assert(firefox.version.startsWith('127'), `version~127 (got ${firefox.version})`);
+
+  const safari = parseUserAgent(
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+  );
+  assert(safari.browser === 'Safari', `browser=Safari (got ${safari.browser})`);
+  assert(safari.version.startsWith('17'), `version~17 (got ${safari.version})`);
 }
 
 async function testSites(): Promise<void> {
@@ -291,9 +304,22 @@ async function testBehaviorDetail(): Promise<void> {
     params: {},
     next: async () => new Response('not used'),
   });
-  const sBody = (await sources.json()) as { sources: Record<string, number> };
-  assert(sBody.sources.search === 1, `search=1 (got ${sBody.sources.search})`);
-  assert(sBody.sources.direct === 1, `direct=1 (got ${sBody.sources.direct})`);
+  const sBody = (await sources.json()) as {
+    hosts: Record<string, number>;
+    ranking: Array<{ host: string; pv: number }>;
+  };
+  assert(
+    (sBody.hosts['www.google.com'] ?? 0) >= 1,
+    `google host counted (got ${sBody.hosts['www.google.com']})`,
+  );
+  assert(
+    (sBody.hosts['(direct)'] ?? 0) >= 1,
+    `direct host counted (got ${sBody.hosts['(direct)']})`,
+  );
+  assert(
+    sBody.ranking.some((r) => r.host === 'www.google.com'),
+    'ranking includes google host',
+  );
 
   const pages = await pagesGet({
     request: new Request('http://localhost/v1/stats/pages?siteId=smoke'),
@@ -310,9 +336,30 @@ async function testBehaviorDetail(): Promise<void> {
     next: async () => new Response('not used'),
   });
   const dBody = (await devices.json()) as {
-    devices: { type: Record<string, number>; browser: Record<string, number> };
+    devices: {
+      type: Record<string, number>;
+      browser: Record<string, number>;
+    };
+    ranking: {
+      fingerprints: Array<{
+        fingerprint: string;
+        browser: string;
+        version: string;
+        pv: number;
+      }>;
+    };
   };
   assert(dBody.devices.type.mobile === 2, `mobile=2 (got ${dBody.devices.type.mobile})`);
+  assert(
+    dBody.ranking.fingerprints.length >= 1,
+    `fingerprints ranked (got ${dBody.ranking.fingerprints.length})`,
+  );
+  assert(
+    dBody.ranking.fingerprints.every(
+      (r) => !!r.fingerprint && !!r.browser && !!r.version,
+    ),
+    'fingerprint rows include browser + version',
+  );
 }
 
 async function testTrend(): Promise<void> {

@@ -25,9 +25,14 @@ docs/                # 技术文档
 npm install
 npm run build -w @kestrel/shared
 npm run build:tracker   # 输出 tracking-script/dist/kestrel.js
-npm run dev             # 仪表盘 http://localhost:5173
+npm run dev:all         # 造测试数据 + Mock API + 仪表盘（看样式）
+# 或：
+# npm run seed:mock && npm run mock:api   # :8088
+# npm run dev                            # :5173
 npm test                # 本地冒烟：track → realtime/trend + 脚本体积
 ```
+
+本地预览数据写在 `.kestrel/mock/`（已 gitignore，不入库）。
 
 嵌入追踪脚本：
 

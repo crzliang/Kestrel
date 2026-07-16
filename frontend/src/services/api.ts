@@ -45,11 +45,38 @@ export function fetchRealtime(siteId: string) {
 
 export type TrendPoint = { date: string; pv: number; uv: number };
 
-export function fetchTrend(siteId: string, days = 7) {
-  return getJson<{ siteId: string; points: TrendPoint[] }>(
-    `/v1/stats/trend?siteId=${encodeURIComponent(siteId)}&days=${days}`,
-  );
+export type TrendQuery = {
+  days?: number;
+  startDate?: string;
+  endDate?: string;
+  /** 全部可用历史（服务端上限内） */
+  all?: boolean;
+};
+
+export function fetchTrend(siteId: string, query: number | TrendQuery = 7) {
+  const params = new URLSearchParams({
+    siteId,
+  });
+  if (typeof query === 'number') {
+    params.set('days', String(query));
+  } else if (query.all) {
+    params.set('range', 'all');
+  } else if (query.startDate && query.endDate) {
+    params.set('startDate', query.startDate);
+    params.set('endDate', query.endDate);
+  } else if (query.days != null) {
+    params.set('days', String(query.days));
+  } else {
+    params.set('days', '7');
+  }
+  return getJson<{
+    siteId: string;
+    points: TrendPoint[];
+    startDate?: string | null;
+    endDate?: string | null;
+  }>(`/v1/stats/trend?${params.toString()}`);
 }
+
 
 export function fetchGeo(siteId: string) {
   return getJson<GeoStats>(

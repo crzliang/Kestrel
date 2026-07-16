@@ -110,6 +110,19 @@ code {
   letter-spacing: -0.02em;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+  text-decoration: none;
+}
+
+a.brand:hover {
+  color: var(--ink);
+}
+
+.crumb-link {
+  text-decoration: none;
+}
+
+.crumb-link:hover {
+  color: var(--accent);
 }
 
 .brand-mark {
@@ -279,6 +292,12 @@ code {
 .site-foot-link:hover {
   color: var(--ink);
   background: var(--nav-hover);
+}
+
+.site-foot-link.is-active {
+  color: var(--ink);
+  background: var(--nav-hover);
+  font-weight: 500;
 }
 
 .app-header.ant-layout-header {
@@ -489,6 +508,54 @@ code {
   color: var(--accent-2);
 }
 
+.equal-cards-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.equal-cards-row > .ant-col {
+  display: flex;
+}
+
+.equal-cards-row .equal-card.ant-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.equal-cards-row .equal-card .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.equal-card-body {
+  flex: 1;
+  /* header ≈ 39px + 10 × small rows (~47px, favicon-friendly) */
+  min-height: 510px;
+  max-height: 510px;
+  overflow: auto;
+}
+
+.trend-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  padding-right: 4px;
+}
+
+.trend-range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .utility-table .ant-table {
   background: transparent;
 }
@@ -516,7 +583,44 @@ code {
   border-radius: 10px !important;
 }
 
-.snippet-box {
+.source-host-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.source-host-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-favicon {
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--code-bg);
+}
+
+.site-favicon-fallback {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.site-favicon-fallback.is-direct {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
   margin: 0 0 12px;
   padding: 14px 16px;
   border-radius: 10px;

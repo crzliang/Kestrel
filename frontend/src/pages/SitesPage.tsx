@@ -13,6 +13,7 @@ import {
   Popconfirm,
 } from 'antd';
 import { PlusOutlined, CopyOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import {
   createSite,
@@ -30,6 +31,7 @@ type FormValues = {
 };
 
 export default function SitesPage() {
+  const navigate = useNavigate();
   const { sites, siteId, setSiteId, refreshSites, loading } = useSiteStore();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -118,7 +120,7 @@ export default function SitesPage() {
     <div className="page">
       <PageHeader
         title="站点管理"
-        description="接入并管理多个网站。创建后在顶栏切换，把埋点脚本嵌入对应站点即可。"
+        description="在此创建、编辑站点与复制埋点代码。回到数据预览：点击左侧具体站点。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建站点
@@ -175,9 +177,12 @@ export default function SitesPage() {
                   <Button
                     type="link"
                     size="small"
-                    onClick={() => setSiteId(row.id)}
+                    onClick={() => {
+                      setSiteId(row.id);
+                      navigate('/');
+                    }}
                   >
-                    切换
+                    查看数据
                   </Button>
                   <Button type="link" size="small" onClick={() => openEdit(row)}>
                     编辑

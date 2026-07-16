@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Tooltip } from 'antd';
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Site } from '@kestrel/shared';
 import Sparkline from './Sparkline';
 
@@ -41,15 +41,16 @@ export default function SiteSidebar({
   loading,
   onSelect,
 }: SiteSidebarProps) {
+  const location = useLocation();
   return (
     <div className="site-sidebar">
-      <div className="brand">
+      <Link to="/" className="brand">
         <span className="brand-mark" aria-hidden />
         <div className="brand-text">
           <span className="brand-name">Kestrel</span>
           <span className="brand-sub">Analytics</span>
         </div>
-      </div>
+      </Link>
 
       <div className="site-sidebar-label">
         <span>站点</span>
@@ -104,7 +105,10 @@ export default function SiteSidebar({
       </div>
 
       <div className="site-sidebar-foot">
-        <Link to="/sites" className="site-foot-link">
+        <Link
+          to="/sites"
+          className={`site-foot-link${location.pathname === '/sites' ? ' is-active' : ''}`}
+        >
           <SettingOutlined />
           <span>站点管理</span>
         </Link>

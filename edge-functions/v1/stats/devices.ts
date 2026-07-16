@@ -2,15 +2,33 @@ import { corsHeaders, jsonResponse } from '../../lib/http';
 import { deviceDayKey, kvGetJson } from '../../lib/storage';
 import type { EventContext } from '../../lib/types';
 
+type FingerprintAgg = {
+  browser: string;
+  version: string;
+  pv: number;
+};
+
 type DeviceAgg = {
   os: Record<string, number>;
   browser: Record<string, number>;
   type: Record<string, number>;
+  fingerprints?: Record<string, FingerprintAgg>;
 };
 
 function toRanking(map: Record<string, number> = {}) {
   return Object.entries(map)
     .map(([name, pv]) => ({ name, pv }))
+    .sort((a, b) => b.pv - a.pv);
+}
+
+function toFingerprintRanking(map: Record<string, FingerprintAgg> = {}) {
+  return Object.entries(map)
+    .map(([fingerprint, row]) => ({
+      fingerprint,
+      browser: row.browser,
+      version: row.version,
+      pv: row.pv,
+    }))
     .sort((a, b) => b.pv - a.pv);
 }
 
@@ -26,6 +44,7 @@ export async function onRequestGet({
     os: {},
     browser: {},
     type: {},
+    fingerprints: {},
   };
 
   return jsonResponse(
@@ -41,6 +60,7 @@ export async function onRequestGet({
         os: toRanking(devices.os),
         browser: toRanking(devices.browser),
         type: toRanking(devices.type),
+        fingerprints: toFingerprintRanking(devices.fingerprints),
       },
       ts: Date.now(),
     },

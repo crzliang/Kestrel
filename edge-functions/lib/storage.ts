@@ -326,10 +326,13 @@ export type BehaviorEvent = {
   country: string;
   /** SHA-256 short hash of IP — never store raw IP by default */
   ipHash: string;
+  /** Short hash of User-Agent — browser fingerprint */
+  uaFingerprint: string;
   screenWidth: number;
   device: {
     os: string;
     browser: string;
+    version: string;
     type: string;
   };
 };

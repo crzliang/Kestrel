@@ -30,8 +30,11 @@ export type GeoStats = {
 export type SourceStats = {
   siteId: string;
   date: string;
+  /** host → pv；直接访问为 "(direct)" */
+  hosts: Record<string, number>;
+  ranking: Array<{ host: string; pv: number; channel: string }>;
+  /** @deprecated 兼容旧字段，等同 hosts */
   sources: Record<string, number>;
-  ranking: Array<{ source: string; pv: number }>;
   ts: number;
 };
 
@@ -55,6 +58,12 @@ export type DeviceStats = {
     os: Array<{ name: string; pv: number }>;
     browser: Array<{ name: string; pv: number }>;
     type: Array<{ name: string; pv: number }>;
+    fingerprints: Array<{
+      fingerprint: string;
+      browser: string;
+      version: string;
+      pv: number;
+    }>;
   };
   ts: number;
 };
@@ -71,10 +80,13 @@ export type BehaviorEvent = {
   source: string;
   country: string;
   ipHash: string;
+  /** Short hash of User-Agent — browser fingerprint, not raw UA */
+  uaFingerprint: string;
   screenWidth: number;
   device: {
     os: string;
     browser: string;
+    version: string;
     type: string;
   };
 };

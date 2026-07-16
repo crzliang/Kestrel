@@ -71,6 +71,7 @@ export async function onRequestPost({
 
   const ua = request.headers.get('user-agent') ?? '';
   const device = parseUserAgent(ua);
+  const uaFingerprint = await sha256Short(ua || 'unknown-ua');
   const geo = resolveClientGeo(request);
   const source = classifySource(event.referrer, event.url);
   const refHost = referrerHost(event.referrer);
@@ -85,7 +86,10 @@ export async function onRequestPost({
       300,
     );
     await kvIncrCountry(event.siteId, geo.country, event.timestamp);
-    await kvIncrFlatField(sourceDayKey(event.siteId, event.timestamp), source);
+    await kvIncrFlatField(
+      sourceDayKey(event.siteId, event.timestamp),
+      refHost || '(direct)',
+    );
     await kvIncrFlatField(pageDayKey(event.siteId, event.timestamp), path);
 
     const devKey = deviceDayKey(event.siteId, event.timestamp);
@@ -93,10 +97,28 @@ export async function onRequestPost({
       os: Record<string, number>;
       browser: Record<string, number>;
       type: Record<string, number>;
-    }>(devKey)) ?? { os: {}, browser: {}, type: {} };
+      fingerprints: Record<
+        string,
+        { browser: string; version: string; pv: number }
+      >;
+    }>(devKey)) ?? {
+      os: {},
+      browser: {},
+      type: {},
+      fingerprints: {},
+    };
     devices.os[device.os] = (devices.os[device.os] ?? 0) + 1;
     devices.browser[device.browser] = (devices.browser[device.browser] ?? 0) + 1;
     devices.type[device.type] = (devices.type[device.type] ?? 0) + 1;
+    const fp = devices.fingerprints[uaFingerprint] ?? {
+      browser: device.browser,
+      version: device.version,
+      pv: 0,
+    };
+    fp.browser = device.browser;
+    fp.version = device.version;
+    fp.pv += 1;
+    devices.fingerprints[uaFingerprint] = fp;
     await kvPutJson(devKey, devices);
   }
 
@@ -112,6 +134,7 @@ export async function onRequestPost({
     source,
     country: geo.country,
     ipHash,
+    uaFingerprint,
     screenWidth: event.screenWidth,
     device,
   };

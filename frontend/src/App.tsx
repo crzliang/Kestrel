@@ -1,7 +1,14 @@
 import { useEffect, useMemo } from 'react';
 import { Layout, Button, Tooltip } from 'antd';
 import { MoonOutlined, SunOutlined } from '@ant-design/icons';
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import DashboardPage from './pages/DashboardPage';
 import TrendsPage from './pages/TrendsPage';
 import MapPage from './pages/MapPage';
@@ -18,8 +25,6 @@ const { Header, Sider, Content } = Layout;
 
 const TABS = [
   { key: '/', label: '总览', to: '/' },
-  { key: '/pages', label: '页面', to: '/pages' },
-  { key: '/sources', label: '来源', to: '/sources' },
   { key: '/behavior', label: '行为', to: '/behavior' },
   { key: '/devices', label: '设备', to: '/devices' },
   { key: '/map', label: '地图', to: '/map' },
@@ -28,6 +33,7 @@ const TABS = [
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     siteId,
     setSiteId,
@@ -49,7 +55,11 @@ export default function App() {
     [sites, siteId],
   );
 
-  const hideTabs = location.pathname === '/sites';
+  const onSelectSite = (id: string) => {
+    setSiteId(id);
+    // 点侧栏具体站点 → 回到数据预览（总览）
+    navigate('/');
+  };
 
   return (
     <Layout className="app-shell">
@@ -64,17 +74,23 @@ export default function App() {
           siteId={siteId}
           sparklines={sparklines}
           loading={loading}
-          onSelect={setSiteId}
+          onSelect={onSelectSite}
         />
       </Sider>
       <Layout>
         <Header className="app-header">
           <div className="header-crumb">
-            <span className="crumb-muted">Workspace</span>
+            <Link to="/" className="crumb-muted crumb-link">
+              Workspace
+            </Link>
             <span className="crumb-sep">/</span>
-            <span className="crumb-current">
-              {currentSite?.name ?? siteId}
-            </span>
+            {location.pathname === '/sites' ? (
+              <span className="crumb-current">站点管理</span>
+            ) : (
+              <Link to="/" className="crumb-current crumb-link">
+                {currentSite?.name ?? siteId}
+              </Link>
+            )}
           </div>
           <div className="header-actions">
             <Tooltip title={mode === 'light' ? '切换深色' : '切换浅色'}>
@@ -88,7 +104,7 @@ export default function App() {
           </div>
         </Header>
 
-        {!hideTabs && (
+        {location.pathname !== '/sites' && (
           <nav className="top-tabs" aria-label="分析模块">
             {TABS.map((tab) => (
               <Link

@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Alert, Spin } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import PageHeader from '../components/PageHeader';
+import TrendRangeControl, {
+  toTrendQuery,
+  type TrendRangeValue,
+} from '../components/TrendRangeControl';
 import { fetchTrend, type TrendPoint } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
@@ -9,16 +13,19 @@ import { useThemeStore } from '../store/theme';
 export default function TrendsPage() {
   const siteId = useSiteStore((s) => s.siteId);
   const mode = useThemeStore((s) => s.mode);
+  const [range, setRange] = useState<TrendRangeValue>({ preset: '30d' });
   const [points, setPoints] = useState<TrendPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const trendQuery = useMemo(() => toTrendQuery(range), [range]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetchTrend(siteId, 7);
+        const res = await fetchTrend(siteId, trendQuery);
         if (!cancelled) {
           setPoints(res.points);
           setError(null);
@@ -35,7 +42,7 @@ export default function TrendsPage() {
     return () => {
       cancelled = true;
     };
-  }, [siteId]);
+  }, [siteId, trendQuery]);
 
   const dark = mode === 'dark';
   const muted = dark ? '#94a3b8' : '#64748b';
@@ -50,9 +57,13 @@ export default function TrendsPage() {
     grid: { left: 40, right: 20, top: 40, bottom: 30 },
     xAxis: {
       type: 'category',
-      data: points.map((p) => p.date),
+      data: points.map((p) => p.date.slice(5)),
       boundaryGap: false,
-      axisLabel: { color: muted },
+      axisLabel: {
+        color: muted,
+        interval: points.length > 20 ? 2 : 0,
+        hideOverlap: true,
+      },
       axisLine: { lineStyle: { color: line } },
     },
     yAxis: {
@@ -82,7 +93,10 @@ export default function TrendsPage() {
     <div className="page">
       <PageHeader
         title="流量趋势"
-        description="近 7 日 PV / UV（来自日聚合；未聚合时为 0）。"
+        description="按时间范围查看 PV / UV。"
+        extra={
+          <TrendRangeControl value={range} onChange={setRange} />
+        }
       />
       {error && (
         <Alert
@@ -95,7 +109,7 @@ export default function TrendsPage() {
       )}
       <Card className="chart-card" bordered>
         <Spin spinning={loading}>
-          <ReactECharts option={option} style={{ height: 360 }} />
+          <ReactECharts option={option} style={{ height: 360 }} notMerge />
         </Spin>
       </Card>
     </div>
