@@ -7,10 +7,16 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pbkdf2Sync, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const mockDir = join(root, '.kestrel', 'mock');
 const port = Number(process.env.MOCK_API_PORT || 8088);
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+const CHALLENGE_TTL_MS = 1000 * 60 * 5;
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+const challenges = new Map();
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -23,7 +29,7 @@ function send(res, status, body, headers = {}) {
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     ...headers,
   });
   res.end(payload ?? '');
@@ -39,6 +45,181 @@ function loadSites() {
 
 function saveSites(data) {
   writeFileSync(join(mockDir, 'sites.json'), JSON.stringify(data, null, 2));
+}
+
+function loadAccounts() {
+  const path = join(mockDir, 'accounts.json');
+  if (!existsSync(path)) {
+    return { accounts: [], total: 0 };
+  }
+  return readJson(path);
+}
+
+function saveAccounts(data) {
+  writeFileSync(join(mockDir, 'accounts.json'), JSON.stringify(data, null, 2));
+}
+
+function loadSessions() {
+  const path = join(mockDir, 'sessions.json');
+  if (!existsSync(path)) return { sessions: [] };
+  return readJson(path);
+}
+
+function saveSessions(data) {
+  writeFileSync(join(mockDir, 'sessions.json'), JSON.stringify(data, null, 2));
+}
+
+function loadSettings() {
+  const path = join(mockDir, 'settings.json');
+  if (!existsSync(path)) {
+    return { title: 'Kestrel', subtitle: 'Analytics', logoUrl: '' };
+  }
+  return readJson(path);
+}
+
+function saveSettings(data) {
+  writeFileSync(join(mockDir, 'settings.json'), JSON.stringify(data, null, 2));
+}
+
+function hashPassword(password) {
+  const salt = randomBytes(16);
+  const hash = pbkdf2Sync(password, salt, 100_000, 32, 'sha256');
+  return `pbkdf2$100000$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+function verifyPassword(password, stored) {
+  const parts = String(stored || '').split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  const iterations = Number(parts[1]);
+  const salt = Buffer.from(parts[2], 'hex');
+  const expected = Buffer.from(parts[3], 'hex');
+  const actual = pbkdf2Sync(password, salt, iterations, expected.length, 'sha256');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function publicAccount(rec) {
+  return {
+    id: rec.id,
+    username: rec.username,
+    displayName: rec.displayName,
+    role: rec.role,
+    totpEnabled: Boolean(rec.totpEnabled),
+    createdAt: rec.createdAt,
+    updatedAt: rec.updatedAt,
+  };
+}
+
+function base32Encode(buf) {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of buf) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) output += BASE32[(value << (5 - bits)) & 31];
+  return output;
+}
+
+function base32Decode(input) {
+  const cleaned = String(input || '')
+    .replace(/=+$/, '')
+    .toUpperCase();
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const ch of cleaned) {
+    const idx = BASE32.indexOf(ch);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+function totpCode(secret, counter = Math.floor(Date.now() / 1000 / 30)) {
+  const key = base32Decode(secret);
+  const msg = Buffer.alloc(8);
+  msg.writeUInt32BE(0, 0);
+  msg.writeUInt32BE(counter >>> 0, 4);
+  const sig = createHmac('sha1', key).update(msg).digest();
+  const offset = sig[sig.length - 1] & 0x0f;
+  const bin =
+    ((sig[offset] & 0x7f) << 24) |
+    ((sig[offset + 1] & 0xff) << 16) |
+    ((sig[offset + 2] & 0xff) << 8) |
+    (sig[offset + 3] & 0xff);
+  return String(bin % 1_000_000).padStart(6, '0');
+}
+
+function verifyTotp(secret, code) {
+  const cleaned = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(cleaned)) return false;
+  const step = Math.floor(Date.now() / 1000 / 30);
+  for (let i = -1; i <= 1; i++) {
+    if (totpCode(secret, step + i) === cleaned) return true;
+  }
+  return false;
+}
+
+function issueSession(res, rec) {
+  const token = `tok_${Date.now().toString(36)}_${randomBytes(8).toString('hex')}`;
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  const sessions = loadSessions();
+  sessions.sessions = sessions.sessions.filter((s) => s.expiresAt >= Date.now());
+  sessions.sessions.push({ token, accountId: rec.id, expiresAt });
+  saveSessions(sessions);
+  return send(res, 200, {
+    token,
+    account: publicAccount(rec),
+    expiresAt,
+  });
+}
+
+function ensureDefaultAdmin() {
+  const doc = loadAccounts();
+  if (doc.accounts.length > 0) return doc;
+  const now = Date.now();
+  doc.accounts = [
+    {
+      id: 'acct_admin',
+      username: 'admin',
+      displayName: '管理员',
+      role: 'admin',
+      totpEnabled: false,
+      passwordHash: hashPassword('admin123'),
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+  doc.total = 1;
+  saveAccounts(doc);
+  return doc;
+}
+
+function bearerToken(req) {
+  const header = req.headers.authorization || '';
+  const m = header.match(/^Bearer\s+(.+)$/i);
+  return m?.[1]?.trim() || null;
+}
+
+function resolveAccount(req) {
+  const token = bearerToken(req);
+  if (!token) return null;
+  const sessions = loadSessions();
+  const session = sessions.sessions.find((s) => s.token === token);
+  if (!session || session.expiresAt < Date.now()) return null;
+  const doc = ensureDefaultAdmin();
+  const rec = doc.accounts.find((a) => a.id === session.accountId);
+  return rec ? publicAccount(rec) : null;
 }
 
 function ensureSiteBundle(site) {
@@ -92,6 +273,8 @@ if (!existsSync(join(mockDir, 'sites.json'))) {
   process.exit(1);
 }
 
+ensureDefaultAdmin();
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
@@ -104,6 +287,208 @@ const server = createServer(async (req, res) => {
 
     if (method === 'POST' && pathname === '/v1/track') {
       return send(res, 204, null);
+    }
+
+    if (pathname === '/v1/auth/login' && method === 'POST') {
+      const body = await readBody(req);
+      ensureDefaultAdmin();
+      const doc = loadAccounts();
+
+      if (body?.challengeToken) {
+        const challenge = challenges.get(String(body.challengeToken));
+        if (!challenge || challenge.expiresAt < Date.now()) {
+          return send(res, 401, { error: 'challenge_expired' });
+        }
+        const rec = doc.accounts.find((a) => a.id === challenge.accountId);
+        if (!rec?.totpEnabled || !rec.totpSecret) {
+          return send(res, 401, { error: 'invalid_credentials' });
+        }
+        if (!verifyTotp(rec.totpSecret, body.totpCode)) {
+          return send(res, 401, { error: 'invalid_totp' });
+        }
+        challenges.delete(String(body.challengeToken));
+        return issueSession(res, rec);
+      }
+
+      const username = String(body?.username || '')
+        .trim()
+        .toLowerCase();
+      const rec = doc.accounts.find((a) => a.username === username);
+      if (!rec || !verifyPassword(String(body?.password || ''), rec.passwordHash)) {
+        return send(res, 401, { error: 'invalid_credentials' });
+      }
+
+      if (rec.totpEnabled && rec.totpSecret) {
+        if (body?.totpCode) {
+          if (!verifyTotp(rec.totpSecret, body.totpCode)) {
+            return send(res, 401, { error: 'invalid_totp' });
+          }
+          return issueSession(res, rec);
+        }
+        const challengeToken = `chal_${Date.now().toString(36)}_${randomBytes(6).toString('hex')}`;
+        challenges.set(challengeToken, {
+          accountId: rec.id,
+          expiresAt: Date.now() + CHALLENGE_TTL_MS,
+        });
+        return send(res, 200, { requiresTotp: true, challengeToken });
+      }
+
+      return issueSession(res, rec);
+    }
+
+    if (pathname === '/v1/auth/logout' && method === 'POST') {
+      const token = bearerToken(req);
+      if (token) {
+        const sessions = loadSessions();
+        sessions.sessions = sessions.sessions.filter((s) => s.token !== token);
+        saveSessions(sessions);
+      }
+      return send(res, 204, null);
+    }
+
+    if (pathname === '/v1/auth/me' && method === 'GET') {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+      return send(res, 200, { account });
+    }
+
+    if (pathname === '/v1/auth/password' && method === 'POST') {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+      const body = await readBody(req);
+      const doc = ensureDefaultAdmin();
+      const idx = doc.accounts.findIndex((a) => a.id === account.id);
+      if (idx < 0) return send(res, 404, { error: 'not_found' });
+      const cur = doc.accounts[idx];
+      if (!verifyPassword(String(body?.currentPassword || ''), cur.passwordHash)) {
+        return send(res, 401, { error: 'invalid_credentials' });
+      }
+      const nextPass = String(body?.newPassword || '');
+      if (nextPass.length < 6) return send(res, 400, { error: 'invalid_payload' });
+      doc.accounts[idx] = {
+        ...cur,
+        passwordHash: hashPassword(nextPass),
+        updatedAt: Date.now(),
+      };
+      saveAccounts(doc);
+      return send(res, 204, null);
+    }
+
+    if (pathname === '/v1/auth/totp/setup' && method === 'POST') {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+      const doc = ensureDefaultAdmin();
+      const idx = doc.accounts.findIndex((a) => a.id === account.id);
+      if (idx < 0) return send(res, 404, { error: 'not_found' });
+      const cur = doc.accounts[idx];
+      if (cur.totpEnabled) return send(res, 400, { error: 'totp_already_enabled' });
+      const secret = base32Encode(randomBytes(20));
+      doc.accounts[idx] = {
+        ...cur,
+        totpPendingSecret: secret,
+        updatedAt: Date.now(),
+      };
+      saveAccounts(doc);
+      const settings = loadSettings();
+      const issuer = settings.title || 'Kestrel';
+      const label = encodeURIComponent(`${issuer}:${cur.username}`);
+      const params = new URLSearchParams({
+        secret,
+        issuer,
+        algorithm: 'SHA1',
+        digits: '6',
+        period: '30',
+      });
+      return send(res, 200, {
+        secret,
+        otpauthUrl: `otpauth://totp/${label}?${params.toString()}`,
+      });
+    }
+
+    if (pathname === '/v1/auth/totp/confirm' && method === 'POST') {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+      const body = await readBody(req);
+      const doc = ensureDefaultAdmin();
+      const idx = doc.accounts.findIndex((a) => a.id === account.id);
+      if (idx < 0) return send(res, 404, { error: 'not_found' });
+      const cur = doc.accounts[idx];
+      if (!cur.totpPendingSecret) {
+        return send(res, 400, { error: 'totp_setup_required' });
+      }
+      if (!verifyTotp(cur.totpPendingSecret, body?.code)) {
+        return send(res, 401, { error: 'invalid_totp' });
+      }
+      doc.accounts[idx] = {
+        ...cur,
+        totpEnabled: true,
+        totpSecret: cur.totpPendingSecret,
+        totpPendingSecret: undefined,
+        updatedAt: Date.now(),
+      };
+      saveAccounts(doc);
+      return send(res, 200, { account: publicAccount(doc.accounts[idx]) });
+    }
+
+    if (pathname === '/v1/auth/totp/disable' && method === 'POST') {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+      const body = await readBody(req);
+      const doc = ensureDefaultAdmin();
+      const idx = doc.accounts.findIndex((a) => a.id === account.id);
+      if (idx < 0) return send(res, 404, { error: 'not_found' });
+      const cur = doc.accounts[idx];
+      if (!cur.totpEnabled || !cur.totpSecret) {
+        return send(res, 400, { error: 'totp_not_enabled' });
+      }
+      if (!verifyPassword(String(body?.password || ''), cur.passwordHash)) {
+        return send(res, 401, { error: 'invalid_credentials' });
+      }
+      if (!verifyTotp(cur.totpSecret, body?.code)) {
+        return send(res, 401, { error: 'invalid_totp' });
+      }
+      doc.accounts[idx] = {
+        ...cur,
+        totpEnabled: false,
+        totpSecret: undefined,
+        totpPendingSecret: undefined,
+        updatedAt: Date.now(),
+      };
+      saveAccounts(doc);
+      return send(res, 200, { account: publicAccount(doc.accounts[idx]) });
+    }
+
+    if (pathname === '/v1/settings' && method === 'GET') {
+      return send(res, 200, { settings: loadSettings() });
+    }
+
+    const isPublic =
+      pathname === '/v1/track' ||
+      pathname === '/v1/auth/login' ||
+      (pathname === '/v1/settings' && method === 'GET');
+    if (!isPublic) {
+      const account = resolveAccount(req);
+      if (!account) return send(res, 401, { error: 'unauthorized' });
+    }
+
+    if (pathname === '/v1/settings' && method === 'PATCH') {
+      const body = await readBody(req);
+      const cur = loadSettings();
+      const next = {
+        title:
+          body?.title !== undefined
+            ? String(body.title).trim() || 'Kestrel'
+            : cur.title,
+        subtitle:
+          body?.subtitle !== undefined
+            ? String(body.subtitle).trim()
+            : cur.subtitle,
+        logoUrl:
+          body?.logoUrl !== undefined ? String(body.logoUrl).trim() : cur.logoUrl,
+        updatedAt: Date.now(),
+      };
+      saveSettings(next);
+      return send(res, 200, { settings: next });
     }
 
     if (pathname === '/v1/sites' && method === 'GET') {
@@ -249,4 +634,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`Mock API http://127.0.0.1:${port}  (data: ${mockDir})`);
+  console.log('Default login: admin / admin123');
 });

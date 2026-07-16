@@ -6,10 +6,16 @@
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, '.kestrel', 'mock');
 
+function hashPassword(password) {
+  const salt = randomBytes(16);
+  const hash = pbkdf2Sync(password, salt, 100_000, 32, 'sha256');
+  return `pbkdf2$100000$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
 const SITES = [
   { id: 'urbanbite', name: 'UrbanBite Delivery', domain: 'urbanbite.example' },
   { id: 'blog', name: 'Blog', domain: 'blog.example.com' },
@@ -303,6 +309,32 @@ const sites = SITES.map((s, i) => ({
 
 writeFileSync(join(outDir, 'sites.json'), JSON.stringify({ sites, total: sites.length }, null, 2));
 
+const accounts = [
+  {
+    id: 'acct_admin',
+    username: 'admin',
+    displayName: '管理员',
+    role: 'admin',
+    totpEnabled: false,
+    passwordHash: hashPassword('admin123'),
+    createdAt: now - 86_400_000,
+    updatedAt: now - 86_400_000,
+  },
+];
+writeFileSync(
+  join(outDir, 'accounts.json'),
+  JSON.stringify({ accounts, total: accounts.length }, null, 2),
+);
+writeFileSync(join(outDir, 'sessions.json'), JSON.stringify({ sessions: [] }, null, 2));
+writeFileSync(
+  join(outDir, 'settings.json'),
+  JSON.stringify(
+    { title: 'Kestrel', subtitle: 'Analytics', logoUrl: '' },
+    null,
+    2,
+  ),
+);
+
 for (const [idx, site] of sites.entries()) {
   const dir = join(outDir, site.id);
   mkdirSync(dir, { recursive: true });
@@ -327,3 +359,4 @@ writeFileSync(
 
 console.log(`Seeded mock data → ${outDir}`);
 console.log(`Sites: ${sites.map((s) => s.id).join(', ')}`);
+console.log('Default login: admin / admin123');

@@ -9,26 +9,50 @@ import type {
   Site,
   CreateSiteInput,
   UpdateSiteInput,
+  Account,
+  LoginInput,
+  SystemSettings,
+  UpdateSystemSettingsInput,
+  ChangePasswordInput,
+  TotpConfirmInput,
+  TotpDisableInput,
 } from '@kestrel/shared';
+import { getAuthToken, useAuthStore } from '../store/auth';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+
+export class ApiError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(body || `HTTP ${status}`);
+    this.status = status;
+    this.body = body;
+  }
+}
 
 async function requestJson<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
     cache: 'no-store',
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    if (res.status === 401 && !path.startsWith('/v1/auth/login')) {
+      useAuthStore.getState().clearSession();
+    }
+    throw new ApiError(res.status, text || `HTTP ${res.status}`);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -154,6 +178,70 @@ export function updateSite(id: string, input: UpdateSiteInput) {
 export function deleteSite(id: string) {
   return requestJson<void>(`/v1/sites/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  });
+}
+
+export function login(input: LoginInput) {
+  return requestJson<
+    | {
+        token: string;
+        account: Account;
+        expiresAt: number;
+      }
+    | {
+        requiresTotp: true;
+        challengeToken: string;
+      }
+  >('/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function logout() {
+  return requestJson<void>('/v1/auth/logout', { method: 'POST' });
+}
+
+export function fetchMe() {
+  return requestJson<{ account: Account }>('/v1/auth/me');
+}
+
+export function changePassword(input: ChangePasswordInput) {
+  return requestJson<void>('/v1/auth/password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function beginTotpSetup() {
+  return requestJson<{ secret: string; otpauthUrl: string }>(
+    '/v1/auth/totp/setup',
+    { method: 'POST' },
+  );
+}
+
+export function confirmTotpSetup(input: TotpConfirmInput) {
+  return requestJson<{ account: Account }>('/v1/auth/totp/confirm', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function disableTotp(input: TotpDisableInput) {
+  return requestJson<{ account: Account }>('/v1/auth/totp/disable', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function fetchSettings() {
+  return requestJson<{ settings: SystemSettings }>('/v1/settings');
+}
+
+export function updateSettings(input: UpdateSystemSettingsInput) {
+  return requestJson<{ settings: SystemSettings }>('/v1/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
   });
 }
 

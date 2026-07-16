@@ -4,6 +4,7 @@ import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import type { Site } from '@kestrel/shared';
 import Sparkline from './Sparkline';
+import { useSettingsStore } from '../store/settings';
 
 type SiteSidebarProps = {
   sites: Site[];
@@ -34,6 +35,21 @@ function SiteAvatar({ site }: { site: Site }) {
   return <span className="site-avatar-letter">{letter}</span>;
 }
 
+function BrandMark({ logoUrl }: { logoUrl: string }) {
+  const [failed, setFailed] = useState(false);
+  if (logoUrl && !failed) {
+    return (
+      <img
+        className="brand-logo"
+        src={logoUrl}
+        alt=""
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return <span className="brand-mark" aria-hidden />;
+}
+
 export default function SiteSidebar({
   sites,
   siteId,
@@ -42,13 +58,17 @@ export default function SiteSidebar({
   onSelect,
 }: SiteSidebarProps) {
   const location = useLocation();
+  const settings = useSettingsStore((s) => s.settings);
+
   return (
     <div className="site-sidebar">
       <Link to="/" className="brand">
-        <span className="brand-mark" aria-hidden />
+        <BrandMark logoUrl={settings.logoUrl} />
         <div className="brand-text">
-          <span className="brand-name">Kestrel</span>
-          <span className="brand-sub">Analytics</span>
+          <span className="brand-name">{settings.title}</span>
+          {settings.subtitle ? (
+            <span className="brand-sub">{settings.subtitle}</span>
+          ) : null}
         </div>
       </Link>
 
@@ -111,6 +131,13 @@ export default function SiteSidebar({
         >
           <SettingOutlined />
           <span>站点管理</span>
+        </Link>
+        <Link
+          to="/settings"
+          className={`site-foot-link${location.pathname === '/settings' ? ' is-active' : ''}`}
+        >
+          <SettingOutlined />
+          <span>系统设置</span>
         </Link>
       </div>
     </div>

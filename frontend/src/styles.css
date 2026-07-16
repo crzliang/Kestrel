@@ -143,6 +143,15 @@ a.brand:hover {
   flex-shrink: 0;
 }
 
+.brand-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;
@@ -285,6 +294,9 @@ a.brand:hover {
   border-top: 1px solid var(--line);
   padding: 10px 12px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .site-foot-link {
@@ -307,6 +319,194 @@ a.brand:hover {
   color: var(--ink);
   background: var(--nav-hover);
   font-weight: 500;
+}
+
+.app-boot {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse at 20% 0%, var(--accent-soft), transparent 55%),
+    radial-gradient(ellipse at 90% 100%, var(--accent-2-soft), transparent 50%),
+    var(--bg);
+}
+
+.login-panel {
+  width: min(400px, 100%);
+  padding: 28px 28px 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.login-title.ant-typography {
+  margin: 0 0 6px !important;
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+}
+
+.login-desc.ant-typography {
+  margin-bottom: 20px !important;
+}
+
+.login-hint {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.settings-page.page {
+  flex: none;
+  min-height: auto;
+  height: auto;
+  display: block;
+}
+
+.settings-stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+  width: 100%;
+  max-width: none;
+}
+
+.settings-card-totp {
+  grid-column: 1 / -1;
+}
+
+.settings-brand-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.settings-stack .chart-card.ant-card {
+  margin-bottom: 0;
+}
+
+.settings-stack .ant-card-head {
+  min-height: 48px;
+  padding: 0 20px;
+}
+
+.settings-stack .ant-card-head-title {
+  padding: 14px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.settings-stack .ant-card-body {
+  padding: 4px 20px 20px;
+}
+
+.settings-stack .ant-form-item:last-of-type {
+  margin-bottom: 16px;
+}
+
+.settings-stack .settings-actions {
+  margin-top: 4px;
+}
+
+.settings-logo-preview {
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.settings-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-logo-preview .brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.settings-logo-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.totp-setup {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.totp-setup-qr {
+  width: 160px;
+  height: 160px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.totp-setup-qr img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.totp-setup-meta {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.totp-secret {
+  display: inline-block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+
+@media (max-width: 900px) {
+  .settings-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-card-totp {
+    grid-column: auto;
+  }
 }
 
 .app-header.ant-layout-header {
