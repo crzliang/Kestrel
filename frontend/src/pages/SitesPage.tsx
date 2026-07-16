@@ -25,10 +25,10 @@ import {
 import { useSiteStore } from '../store/site';
 import { ALL_SITES_ID } from '../constants/sites';
 import { siteHref } from '../utils/siteRoutes';
+import { newSiteUuid } from '../utils/siteId';
 import type { Site } from '@kestrel/shared';
 
 type FormValues = {
-  id?: string;
   name: string;
   domain?: string;
 };
@@ -39,12 +39,20 @@ export default function SitesPage() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Site | null>(null);
+  const [draftSiteId, setDraftSiteId] = useState('');
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [form] = Form.useForm<FormValues>();
   const watchedName = Form.useWatch('name', form);
   const watchedDomain = Form.useWatch('domain', form);
+
+  const createReady =
+    !editing && Boolean(draftSiteId) && Boolean(watchedName?.trim());
+  const showSnippet = Boolean(editing) || createReady;
+  const snippetSiteId = editing?.id ?? draftSiteId;
+  const snippetName = (watchedName || editing?.name || '').trim();
+  const snippetDomain = (watchedDomain || editing?.domain || '').trim();
 
   useEffect(() => {
     void refreshSites().catch((e) =>
@@ -64,16 +72,19 @@ export default function SitesPage() {
 
   const openCreate = () => {
     setEditing(null);
-    form.resetFields();
+    setDraftSiteId(newSiteUuid());
     setOpen(true);
+  };
+
+  const closeModal = () => {
+    setOpen(false);
+    setEditing(null);
+    setDraftSiteId('');
+    form.resetFields();
   };
 
   const openEdit = (site: Site) => {
     setEditing(site);
-    form.setFieldsValue({
-      name: site.name,
-      domain: site.domain,
-    });
     setOpen(true);
   };
 
@@ -87,17 +98,24 @@ export default function SitesPage() {
           domain: values.domain ?? '',
         });
         message.success('已更新站点');
+        setOpen(false);
+        setEditing(null);
       } else {
+        const id = draftSiteId || newSiteUuid();
         const res = await createSite({
-          id: values.id?.trim() || undefined,
+          id,
           name: values.name,
           domain: values.domain ?? '',
         });
         setSiteId(res.site.id);
-        message.success('已创建站点');
-        navigate(siteHref(res.site.id));
+        setEditing(res.site);
+        setDraftSiteId('');
+        form.setFieldsValue({
+          name: res.site.name,
+          domain: res.site.domain,
+        });
+        message.success('已创建站点，可复制下方埋点代码');
       }
-      setOpen(false);
       await refreshSites();
       setError(null);
     } catch (e) {
@@ -124,7 +142,7 @@ export default function SitesPage() {
     <div className="page sites-page">
       <PageHeader
         title="站点管理"
-        description="创建与编辑站点；在编辑弹窗中复制埋点代码。点击左侧站点可查看数据。"
+        description="创建与编辑站点；填写完整后可复制埋点代码。点击左侧站点可查看数据。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建站点
@@ -229,29 +247,28 @@ export default function SitesPage() {
         className="site-edit-modal"
         title={editing ? '编辑站点' : '新建站点'}
         open={open}
-        onCancel={() => setOpen(false)}
+        onCancel={closeModal}
         onOk={() => void onSubmit()}
         confirmLoading={saving}
         destroyOnClose
-        okText="保存"
-        width={editing ? 640 : 480}
+        okText={editing ? '保存' : '创建'}
+        cancelText="关闭"
+        width={showSnippet ? 640 : 480}
+        afterOpenChange={(visible) => {
+          if (!visible) return;
+          if (editing) {
+            setDraftSiteId('');
+            form.setFieldsValue({
+              name: editing.name,
+              domain: editing.domain,
+            });
+            return;
+          }
+          form.resetFields();
+          setDraftSiteId((prev) => prev || newSiteUuid());
+        }}
       >
         <Form form={form} layout="vertical" requiredMark="optional">
-          {!editing && (
-            <Form.Item
-              label="Site ID"
-              name="id"
-              extra="可选；留空则自动生成。创建后不可修改。"
-              rules={[
-                {
-                  pattern: /^[a-zA-Z0-9_-]*$/,
-                  message: '仅字母数字下划线与连字符',
-                },
-              ]}
-            >
-              <Input placeholder="my-blog" />
-            </Form.Item>
-          )}
           <Form.Item
             label="站点名称"
             name="name"
@@ -259,18 +276,24 @@ export default function SitesPage() {
           >
             <Input placeholder="我的博客" />
           </Form.Item>
-          <Form.Item label="主域名" name="domain">
+          <Form.Item
+            label="主域名"
+            name="domain"
+            extra={
+              !editing ? '填写站点名称后将自动显示埋点代码' : undefined
+            }
+          >
             <Input placeholder="blog.example.com" />
           </Form.Item>
         </Form>
 
-        {editing ? (
+        {showSnippet ? (
           <div className="site-edit-snippet">
             <TrackingSnippet
               compact
-              siteId={editing.id}
-              siteName={watchedName || editing.name}
-              siteDomain={watchedDomain || editing.domain}
+              siteId={snippetSiteId}
+              siteName={snippetName}
+              siteDomain={snippetDomain}
             />
           </div>
         ) : null}

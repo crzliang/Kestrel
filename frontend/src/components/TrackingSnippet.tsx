@@ -135,7 +135,7 @@ export default function TrackingSnippet({
                 · <span className="snippet-meta-domain">{siteDomain}</span>
               </>
             ) : null}
-            ，ID <code className="snippet-site-id">{siteId}</code>
+            ，data-site <code className="snippet-site-id">{siteId}</code>
           </p>
         </div>
         {!compact ? (

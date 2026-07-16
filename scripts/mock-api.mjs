@@ -497,8 +497,7 @@ const server = createServer(async (req, res) => {
 
     if (pathname === '/v1/sites' && method === 'POST') {
       const body = await readBody(req);
-      const id =
-        (body?.id || `site_${Date.now().toString(36)}`).toLowerCase();
+      const id = (body?.id || crypto.randomUUID()).toLowerCase();
       const sitesDoc = loadSites();
       if (sitesDoc.sites.some((s) => s.id === id)) {
         return send(res, 409, { error: 'site_exists' });
