@@ -82,10 +82,15 @@ code {
 .app-shell {
   min-height: 100vh;
   background: transparent !important;
+  display: flex;
 }
 
 .app-shell > .ant-layout {
   background: transparent !important;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-sider.ant-layout-sider {
@@ -400,12 +405,28 @@ a.brand:hover {
   background: transparent !important;
   width: 100%;
   min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .page,
 .page-wide {
   width: 100%;
   max-width: none;
+}
+
+.map-page.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.map-page .page-header,
+.map-page .map-metrics {
+  flex-shrink: 0;
 }
 
 .metric-label {
@@ -705,6 +726,8 @@ a.brand:hover {
   grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.85fr);
   gap: 16px;
   align-items: stretch;
+  flex: 1;
+  min-height: 420px;
 }
 
 .map-stage,
@@ -715,10 +738,13 @@ a.brand:hover {
   background: var(--bg-elevated);
   box-shadow: var(--shadow);
   overflow: hidden;
+  min-height: 0;
+  height: 100%;
 }
 
 .map-stage {
-  min-height: 420px;
+  display: flex;
+  flex-direction: column;
   animation: map-fade-up 0.55s ease both;
   animation-delay: 80ms;
 }
@@ -750,17 +776,28 @@ a.brand:hover {
   animation: map-grid-drift 28s linear infinite;
 }
 
+.map-stage-spin,
 .map-stage .ant-spin-nested-loading,
 .map-stage .ant-spin-container {
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-chart-host {
+  flex: 1;
+  min-height: 420px;
+  height: 100%;
+  width: 100%;
 }
 
 .map-rank {
   display: flex;
   flex-direction: column;
-  max-height: min(62vh, 640px);
-  min-height: 420px;
   animation: map-fade-up 0.55s ease both;
   animation-delay: 140ms;
 }
@@ -1339,6 +1376,18 @@ a.brand:hover {
 
   .map-layout {
     grid-template-columns: 1fr;
+    flex: none;
+    min-height: 0;
+  }
+
+  .map-stage,
+  .map-rank {
+    height: auto;
+  }
+
+  .map-chart-host {
+    min-height: 360px;
+    height: 360px;
   }
 
   .map-rank {

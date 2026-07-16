@@ -289,17 +289,17 @@ export default function MapPage() {
         <div className="map-stage">
           <div className="map-stage-glow" aria-hidden />
           <div className="map-stage-grid" aria-hidden />
-          <Spin spinning={loading || !mapOk}>
-            {mapOk ? (
-              <ReactECharts
-                option={option}
-                style={{ height: 'min(62vh, 640px)', minHeight: 420 }}
-                notMerge
-                lazyUpdate
-              />
-            ) : (
-              <div style={{ height: 'min(62vh, 640px)', minHeight: 420 }} />
-            )}
+          <Spin spinning={loading || !mapOk} className="map-stage-spin">
+            <div className="map-chart-host">
+              {mapOk ? (
+                <ReactECharts
+                  option={option}
+                  style={{ height: '100%', width: '100%' }}
+                  notMerge
+                  lazyUpdate
+                />
+              ) : null}
+            </div>
           </Spin>
         </div>
 
