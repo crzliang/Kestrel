@@ -25,19 +25,26 @@ import SitesPage from './pages/SitesPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import SiteSidebar from './components/SiteSidebar';
+import AllSitesGuard from './components/AllSitesGuard';
 import { useAuthStore } from './store/auth';
 import { useSiteStore } from './store/site';
 import { useSettingsStore } from './store/settings';
 import { useThemeStore } from './store/theme';
+import { ALL_SITES_ID, ALL_SITES_LABEL, isAllSites } from './constants/sites';
+import {
+  parseSiteLocation,
+  siteHref,
+  type AnalysisPage,
+} from './utils/siteRoutes';
 
 const { Header, Sider, Content } = Layout;
 
-const TABS = [
-  { key: '/', label: '总览', to: '/' },
-  { key: '/behavior', label: '行为', to: '/behavior' },
-  { key: '/devices', label: '设备', to: '/devices' },
-  { key: '/map', label: '地图', to: '/map' },
-  { key: '/trends', label: '趋势', to: '/trends' },
+const TABS: Array<{ key: AnalysisPage; label: string }> = [
+  { key: '', label: '总览' },
+  { key: 'behavior', label: '行为' },
+  { key: 'devices', label: '设备' },
+  { key: 'map', label: '地图' },
+  { key: 'trends', label: '趋势' },
 ];
 
 const ADMIN_PATHS = new Set(['/sites', '/settings']);
@@ -50,6 +57,8 @@ export default function App() {
     setSiteId,
     sites,
     sparklines,
+    allSparkline,
+    allSummary,
     refreshSites,
     loading,
   } = useSiteStore();
@@ -61,6 +70,11 @@ export default function App() {
   const logout = useAuthStore((s) => s.logout);
   const refreshSettings = useSettingsStore((s) => s.refresh);
   const brandTitle = useSettingsStore((s) => s.settings.title);
+
+  const parsed = useMemo(
+    () => parseSiteLocation(location.pathname),
+    [location.pathname],
+  );
 
   useEffect(() => {
     void bootstrap();
@@ -78,6 +92,22 @@ export default function App() {
     });
   }, [token, refreshSites]);
 
+  // URL is source of truth for analysis pages
+  useEffect(() => {
+    if (parsed.admin || !parsed.siteId) return;
+    if (parsed.siteId !== siteId) setSiteId(parsed.siteId);
+  }, [parsed.admin, parsed.siteId, setSiteId, siteId]);
+
+  // Drop stale /s/:siteId when the site no longer exists
+  useEffect(() => {
+    if (parsed.admin || !parsed.siteId || isAllSites(parsed.siteId)) return;
+    if (sites.length === 0) return;
+    if (!sites.some((s) => s.id === parsed.siteId)) {
+      setSiteId(ALL_SITES_ID);
+      navigate(siteHref(ALL_SITES_ID, parsed.page), { replace: true });
+    }
+  }, [sites, parsed.admin, parsed.siteId, parsed.page, setSiteId, navigate]);
+
   const currentSite = useMemo(
     () => sites.find((s) => s.id === siteId),
     [sites, siteId],
@@ -85,7 +115,11 @@ export default function App() {
 
   const onSelectSite = (id: string) => {
     setSiteId(id);
-    navigate('/');
+    if (parsed.admin) {
+      navigate(siteHref(id));
+      return;
+    }
+    navigate(siteHref(id, parsed.page));
   };
 
   if (!bootstrapped) {
@@ -103,18 +137,22 @@ export default function App() {
         ? '系统设置'
         : null;
 
+  const activeTab = parsed.admin ? null : parsed.page;
+
   return (
     <Layout className="app-shell">
       <Sider
         breakpoint="lg"
         collapsedWidth={0}
         className="app-sider"
-        width={260}
+        width={280}
       >
         <SiteSidebar
           sites={sites}
           siteId={siteId}
           sparklines={sparklines}
+          allSparkline={allSparkline}
+          allSummary={allSummary}
           loading={loading}
           onSelect={onSelectSite}
         />
@@ -122,15 +160,17 @@ export default function App() {
       <Layout>
         <Header className="app-header">
           <div className="header-crumb">
-            <Link to="/" className="crumb-muted crumb-link">
+            <Link to={siteHref(ALL_SITES_ID)} className="crumb-muted crumb-link">
               Workspace
             </Link>
             <span className="crumb-sep">/</span>
             {crumbLabel ? (
               <span className="crumb-current">{crumbLabel}</span>
             ) : (
-              <Link to="/" className="crumb-current crumb-link">
-                {currentSite?.name ?? siteId}
+              <Link to={siteHref(siteId)} className="crumb-current crumb-link">
+                {isAllSites(siteId)
+                  ? ALL_SITES_LABEL
+                  : (currentSite?.name ?? siteId)}
               </Link>
             )}
           </div>
@@ -185,9 +225,9 @@ export default function App() {
           <nav className="top-tabs" aria-label="分析模块">
             {TABS.map((tab) => (
               <Link
-                key={tab.key}
-                to={tab.to}
-                className={`top-tab${location.pathname === tab.key ? ' is-active' : ''}`}
+                key={tab.key || 'overview'}
+                to={siteHref(siteId, tab.key)}
+                className={`top-tab${activeTab === tab.key ? ' is-active' : ''}`}
               >
                 {tab.label}
               </Link>
@@ -198,12 +238,61 @@ export default function App() {
         <Content className="app-content">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/behavior" element={<BehaviorPage />} />
-            <Route path="/sources" element={<SourcesPage />} />
-            <Route path="/pages" element={<PagesPage />} />
-            <Route path="/devices" element={<DevicesPage />} />
-            <Route path="/map" element={<MapPage />} />
-            <Route path="/trends" element={<TrendsPage />} />
+            <Route
+              path="/behavior"
+              element={
+                <AllSitesGuard>
+                  <BehaviorPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route
+              path="/sources"
+              element={
+                <AllSitesGuard>
+                  <SourcesPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route
+              path="/pages"
+              element={
+                <AllSitesGuard>
+                  <PagesPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route
+              path="/devices"
+              element={
+                <AllSitesGuard>
+                  <DevicesPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route
+              path="/map"
+              element={
+                <AllSitesGuard>
+                  <MapPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route
+              path="/trends"
+              element={
+                <AllSitesGuard>
+                  <TrendsPage />
+                </AllSitesGuard>
+              }
+            />
+            <Route path="/s/:siteId" element={<DashboardPage />} />
+            <Route path="/s/:siteId/behavior" element={<BehaviorPage />} />
+            <Route path="/s/:siteId/sources" element={<SourcesPage />} />
+            <Route path="/s/:siteId/pages" element={<PagesPage />} />
+            <Route path="/s/:siteId/devices" element={<DevicesPage />} />
+            <Route path="/s/:siteId/map" element={<MapPage />} />
+            <Route path="/s/:siteId/trends" element={<TrendsPage />} />
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

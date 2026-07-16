@@ -22,6 +22,8 @@ import {
   updateSite,
 } from '../services/api';
 import { useSiteStore } from '../store/site';
+import { ALL_SITES_ID } from '../constants/sites';
+import { siteHref } from '../utils/siteRoutes';
 import type { Site } from '@kestrel/shared';
 
 type FormValues = {
@@ -83,6 +85,7 @@ export default function SitesPage() {
         });
         setSiteId(res.site.id);
         message.success('已创建站点');
+        navigate(siteHref(res.site.id));
       }
       setOpen(false);
       await refreshSites();
@@ -99,7 +102,7 @@ export default function SitesPage() {
       await deleteSite(site.id);
       message.success('已删除');
       if (siteId === site.id) {
-        setSiteId('demo');
+        setSiteId(ALL_SITES_ID);
       }
       await refreshSites();
     } catch (e) {
@@ -181,7 +184,7 @@ export default function SitesPage() {
                         size="small"
                         onClick={() => {
                           setSiteId(row.id);
-                          navigate('/');
+                          navigate(siteHref(row.id));
                         }}
                       >
                         查看数据
