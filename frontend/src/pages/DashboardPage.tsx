@@ -156,7 +156,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="page page-wide">
+    <div className="page page-wide dashboard-page">
       <PageHeader
         title="访问总览"
         description={`${siteName} 的实时指标与访问趋势。`}

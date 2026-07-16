@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Card, Col, Row, Table, Tag, Spin } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import PageHeader from '../components/PageHeader';
 import SiteFavicon from '../components/SiteFavicon';
+import { useEchartsAutoResize } from '../hooks/useEchartsAutoResize';
 import { fetchSources } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
@@ -27,6 +28,9 @@ export default function SourcesPage() {
   const [data, setData] = useState<SourceStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const chartRef = useRef<ReactECharts>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEchartsAutoResize(hostRef, chartRef);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +77,7 @@ export default function SourcesPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page sources-page">
       <PageHeader
         title="来源分析"
         description="按具体来源站点统计今日流量，并显示网站图标。"
@@ -81,48 +85,60 @@ export default function SourcesPage() {
       {error && (
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 16 }} />
       )}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={12}>
-          <Card className="chart-card" bordered title="来源占比（Top 10）">
-            <Spin spinning={loading}>
-              <ReactECharts option={pie} style={{ height: 320 }} />
-            </Spin>
-          </Card>
-        </Col>
-        <Col xs={24} md={12}>
-          <Card className="chart-card" bordered title="来源站点">
-            <Table
-              className="utility-table"
-              size="small"
-              pagination={false}
-              rowKey="host"
-              loading={loading}
-              dataSource={ranking}
-              columns={[
-                {
-                  title: '来源站点',
-                  dataIndex: 'host',
-                  render: (host: string) => (
-                    <span className="source-host-cell">
-                      <SiteFavicon host={host} size={18} />
-                      <span className="source-host-text">{hostLabel(host)}</span>
-                    </span>
-                  ),
-                },
-                {
-                  title: '类型',
-                  dataIndex: 'channel',
-                  width: 72,
-                  render: (c: string) => (
-                    <Tag>{CHANNEL_LABELS[c] ?? c}</Tag>
-                  ),
-                },
-                { title: 'PV', dataIndex: 'pv', width: 72 },
-              ]}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <div className="page-body sources-body">
+        <Spin spinning={loading} className="dashboard-spin">
+          <Row gutter={[16, 16]} className="equal-cards-row sources-panels">
+            <Col xs={24} md={12}>
+              <Card className="chart-card equal-card" bordered title="来源占比（Top 10）">
+                <div className="page-chart-host" ref={hostRef}>
+                  <ReactECharts
+                    ref={chartRef}
+                    option={pie}
+                    style={{ height: '100%', width: '100%' }}
+                    notMerge
+                  />
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card className="chart-card equal-card" bordered title="来源站点">
+                <div className="equal-card-body">
+                  <Table
+                    className="utility-table"
+                    size="small"
+                    pagination={false}
+                    rowKey="host"
+                    dataSource={ranking}
+                    columns={[
+                      {
+                        title: '来源站点',
+                        dataIndex: 'host',
+                        render: (host: string) => (
+                          <span className="source-host-cell">
+                            <SiteFavicon host={host} size={18} />
+                            <span className="source-host-text">
+                              {hostLabel(host)}
+                            </span>
+                          </span>
+                        ),
+                      },
+                      {
+                        title: '类型',
+                        dataIndex: 'channel',
+                        width: 72,
+                        render: (c: string) => (
+                          <Tag>{CHANNEL_LABELS[c] ?? c}</Tag>
+                        ),
+                      },
+                      { title: 'PV', dataIndex: 'pv', width: 72 },
+                    ]}
+                  />
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        </Spin>
+      </div>
     </div>
   );
 }

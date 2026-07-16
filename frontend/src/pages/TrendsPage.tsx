@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Spin } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import PageHeader from '../components/PageHeader';
@@ -7,6 +7,7 @@ import TrendRangeControl, {
   toTrendQuery,
   type TrendRangeValue,
 } from '../components/TrendRangeControl';
+import { useEchartsAutoResize } from '../hooks/useEchartsAutoResize';
 import { fetchTrend, type TrendPoint } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
@@ -52,6 +53,9 @@ export default function TrendsPage() {
   const [points, setPoints] = useState<TrendPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const chartRef = useRef<ReactECharts>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEchartsAutoResize(hostRef, chartRef);
 
   const trendQuery = useMemo(() => toTrendQuery(range), [range]);
   const stats = useMemo(() => summarize(points), [points]);
@@ -375,12 +379,15 @@ export default function TrendsPage() {
           </div>
         </div>
         <Spin spinning={loading}>
-          <ReactECharts
-            option={option}
-            style={{ height: 'min(52vh, 480px)', minHeight: 360 }}
-            notMerge
-            lazyUpdate
-          />
+          <div className="trend-chart-host" ref={hostRef}>
+            <ReactECharts
+              ref={chartRef}
+              option={option}
+              style={{ height: '100%', width: '100%' }}
+              notMerge
+              lazyUpdate
+            />
+          </div>
         </Spin>
       </div>
     </div>

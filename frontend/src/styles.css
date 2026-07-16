@@ -80,9 +80,13 @@ code {
 }
 
 .app-shell {
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
+  min-height: 100dvh;
   background: transparent !important;
   display: flex;
+  overflow: hidden;
 }
 
 .app-shell > .ant-layout {
@@ -409,23 +413,141 @@ a.brand:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: auto;
 }
 
 .page,
 .page-wide {
   width: 100%;
   max-width: none;
-}
-
-.map-page.page {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-.map-page .page-header,
-.map-page .map-metrics {
+.page > .page-header,
+.page-wide > .page-header {
+  flex-shrink: 0;
+}
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.page-chart-host {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.page > .ant-alert {
+  flex-shrink: 0;
+}
+
+.page-fill-card.ant-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0 !important;
+}
+
+.page-fill-card .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.page-fill-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* —— Dashboard: natural document flow (not viewport-fill) —— */
+.dashboard-page.page,
+.behavior-page.page {
+  flex: none;
+  min-height: auto;
+  height: auto;
+  display: block;
+}
+
+.dashboard-page .equal-card-body {
+  /* header ≈ 39px + 10 × small rows (~47px, favicon-friendly) */
+  flex: none;
+  min-height: 510px;
+  max-height: 510px;
+  overflow: auto;
+}
+
+.dashboard-spin,
+.dashboard-spin.ant-spin-nested-loading,
+.dashboard-spin .ant-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.sources-panels {
+  flex: 1;
+  min-height: 200px;
+}
+
+/* —— Devices —— */
+.devices-body,
+.sources-body,
+.sites-body {
+  gap: 16px;
+}
+
+.devices-charts {
+  flex: 0.9;
+  min-height: 200px;
+}
+
+.devices-detail.ant-card {
+  flex: 1.1;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.devices-detail .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sites-list-card {
+  flex: 1.2;
+}
+
+.sites-snippet-card.ant-card {
   flex-shrink: 0;
 }
 
@@ -532,6 +654,8 @@ a.brand:hover {
 .equal-cards-row {
   display: flex;
   flex-wrap: wrap;
+  flex: 1;
+  min-height: 0;
 }
 
 .equal-cards-row > .ant-col {
@@ -554,9 +678,7 @@ a.brand:hover {
 
 .equal-card-body {
   flex: 1;
-  /* header ≈ 39px + 10 × small rows (~47px, favicon-friendly) */
-  min-height: 510px;
-  max-height: 510px;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -671,6 +793,7 @@ a.brand:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .map-metric {
@@ -727,7 +850,7 @@ a.brand:hover {
   gap: 16px;
   align-items: stretch;
   flex: 1;
-  min-height: 420px;
+  min-height: 280px;
 }
 
 .map-stage,
@@ -790,7 +913,7 @@ a.brand:hover {
 
 .map-chart-host {
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
   height: 100%;
   width: 100%;
 }
@@ -950,6 +1073,7 @@ a.brand:hover {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .trend-metric {
@@ -1029,6 +1153,10 @@ a.brand:hover {
   padding-bottom: 8px;
   animation: map-fade-up 0.55s ease both;
   animation-delay: 100ms;
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
 }
 
 .trend-stage-glow {
@@ -1053,6 +1181,7 @@ a.brand:hover {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px 0;
+  flex-shrink: 0;
 }
 
 .trend-stage-head h2 {
@@ -1097,6 +1226,18 @@ a.brand:hover {
 .trend-stage .ant-spin-container {
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.trend-chart-host {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* —— Behavior page —— */
@@ -1401,6 +1542,22 @@ a.brand:hover {
 
   .trend-stage-head {
     flex-direction: column;
+  }
+
+  .sources-panels,
+  .devices-charts {
+    flex: none;
+    min-height: 0;
+  }
+
+  .sources-panels .page-chart-host,
+  .devices-charts .page-chart-host {
+    min-height: 240px;
+  }
+
+  .dashboard-page .equal-card-body {
+    min-height: 0;
+    max-height: none;
   }
 
   .behavior-metrics {

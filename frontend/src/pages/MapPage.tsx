@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Spin } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts/core';
 import PageHeader from '../components/PageHeader';
+import { useEchartsAutoResize } from '../hooks/useEchartsAutoResize';
 import { fetchGeo } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
@@ -42,6 +43,9 @@ export default function MapPage() {
   const [mapOk, setMapOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const chartRef = useRef<ReactECharts>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  useEchartsAutoResize(hostRef, chartRef, mapOk);
 
   useEffect(() => {
     let cancelled = false;
@@ -290,13 +294,15 @@ export default function MapPage() {
           <div className="map-stage-glow" aria-hidden />
           <div className="map-stage-grid" aria-hidden />
           <Spin spinning={loading || !mapOk} className="map-stage-spin">
-            <div className="map-chart-host">
+            <div className="map-chart-host" ref={hostRef}>
               {mapOk ? (
                 <ReactECharts
+                  ref={chartRef}
                   option={option}
                   style={{ height: '100%', width: '100%' }}
                   notMerge
                   lazyUpdate
+                  opts={{ renderer: 'canvas' }}
                 />
               ) : null}
             </div>

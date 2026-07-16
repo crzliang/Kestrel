@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Card, Col, Row, Table, Spin } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import PageHeader from '../components/PageHeader';
+import { useEchartsAutoResize } from '../hooks/useEchartsAutoResize';
 import { fetchDevices } from '../services/api';
 import { useSiteStore } from '../store/site';
 import { useThemeStore } from '../store/theme';
@@ -48,6 +49,16 @@ export default function DevicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const typeChartRef = useRef<ReactECharts>(null);
+  const typeHostRef = useRef<HTMLDivElement>(null);
+  const osChartRef = useRef<ReactECharts>(null);
+  const osHostRef = useRef<HTMLDivElement>(null);
+  const browserChartRef = useRef<ReactECharts>(null);
+  const browserHostRef = useRef<HTMLDivElement>(null);
+  useEchartsAutoResize(typeHostRef, typeChartRef);
+  useEchartsAutoResize(osHostRef, osChartRef);
+  useEchartsAutoResize(browserHostRef, browserChartRef);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -69,7 +80,7 @@ export default function DevicesPage() {
     };
   }, [siteId]);
 
-  const ranking = data?.ranking ?? {
+  const ranking: DeviceStats['ranking'] = data?.ranking ?? {
     os: [],
     browser: [],
     type: [],
@@ -77,7 +88,7 @@ export default function DevicesPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page devices-page">
       <PageHeader
         title="设备分析"
         description="今日操作系统、浏览器与设备类型分布；明细含版本与 UA 指纹。"
@@ -85,59 +96,68 @@ export default function DevicesPage() {
       {error && (
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 16 }} />
       )}
-      <Spin spinning={loading}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={8}>
-            <Card className="chart-card" bordered>
-              <ReactECharts
-                option={barOption('设备类型', ranking.type, mode)}
-                style={{ height: 280 }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Card className="chart-card" bordered>
-              <ReactECharts
-                option={barOption('操作系统', ranking.os.slice(0, 8), mode)}
-                style={{ height: 280 }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Card className="chart-card" bordered>
-              <ReactECharts
-                option={barOption('浏览器', ranking.browser.slice(0, 8), mode)}
-                style={{ height: 280 }}
-              />
-            </Card>
-          </Col>
-        </Row>
-        <Card
-          className="chart-card"
-          bordered
-          title="流量明细"
-          style={{ marginTop: 16 }}
-        >
-          <Table
-            className="utility-table"
-            size="small"
-            pagination={false}
-            rowKey="fingerprint"
-            dataSource={ranking.fingerprints}
-            columns={[
-              { title: '浏览器', dataIndex: 'browser' },
-              { title: '版本', dataIndex: 'version', width: 140 },
-              {
-                title: '指纹',
-                dataIndex: 'fingerprint',
-                width: 140,
-                render: (fp: string) => <code>{fp}</code>,
-              },
-              { title: 'PV', dataIndex: 'pv', width: 80 },
-            ]}
-          />
-        </Card>
-      </Spin>
+      <div className="page-body devices-body">
+        <Spin spinning={loading} className="dashboard-spin">
+          <Row gutter={[16, 16]} className="equal-cards-row devices-charts">
+            <Col xs={24} lg={8}>
+              <Card className="chart-card equal-card" bordered>
+                <div className="page-chart-host" ref={typeHostRef}>
+                  <ReactECharts
+                    ref={typeChartRef}
+                    option={barOption('设备类型', ranking.type, mode)}
+                    style={{ height: '100%', width: '100%' }}
+                    notMerge
+                  />
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card className="chart-card equal-card" bordered>
+                <div className="page-chart-host" ref={osHostRef}>
+                  <ReactECharts
+                    ref={osChartRef}
+                    option={barOption('操作系统', ranking.os.slice(0, 8), mode)}
+                    style={{ height: '100%', width: '100%' }}
+                    notMerge
+                  />
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card className="chart-card equal-card" bordered>
+                <div className="page-chart-host" ref={browserHostRef}>
+                  <ReactECharts
+                    ref={browserChartRef}
+                    option={barOption('浏览器', ranking.browser.slice(0, 8), mode)}
+                    style={{ height: '100%', width: '100%' }}
+                    notMerge
+                  />
+                </div>
+              </Card>
+            </Col>
+          </Row>
+          <Card className="chart-card devices-detail" bordered title="流量明细">
+            <Table
+              className="utility-table"
+              size="small"
+              pagination={false}
+              rowKey="fingerprint"
+              dataSource={ranking.fingerprints}
+              columns={[
+                { title: '浏览器', dataIndex: 'browser' },
+                { title: '版本', dataIndex: 'version', width: 140 },
+                {
+                  title: '指纹',
+                  dataIndex: 'fingerprint',
+                  width: 140,
+                  render: (fp: string) => <code>{fp}</code>,
+                },
+                { title: 'PV', dataIndex: 'pv', width: 80 },
+              ]}
+            />
+          </Card>
+        </Spin>
+      </div>
     </div>
   );
 }

@@ -117,7 +117,7 @@ export default function SitesPage() {
   };
 
   return (
-    <div className="page">
+    <div className="page sites-page">
       <PageHeader
         title="站点管理"
         description="在此创建、编辑站点与复制埋点代码。回到数据预览：点击左侧具体站点。"
@@ -138,81 +138,85 @@ export default function SitesPage() {
         />
       )}
 
-      <Card className="chart-card" bordered style={{ marginBottom: 16 }}>
-        <Table
-          className="utility-table"
-          loading={loading}
-          rowKey="id"
-          dataSource={sites}
-          pagination={false}
-          columns={[
-            {
-              title: '名称',
-              dataIndex: 'name',
-              render: (name: string, row: Site) => (
-                <Space>
-                  <strong>{name}</strong>
-                  {row.id === siteId ? (
-                    <Typography.Text type="secondary">当前</Typography.Text>
-                  ) : null}
-                </Space>
-              ),
-            },
-            {
-              title: 'Site ID',
-              dataIndex: 'id',
-              render: (id: string) => <code>{id}</code>,
-            },
-            {
-              title: '域名',
-              dataIndex: 'domain',
-              render: (d: string) => d || '—',
-            },
-            {
-              title: '操作',
-              key: 'actions',
-              width: 220,
-              render: (_: unknown, row: Site) => (
-                <Space size="small">
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => {
-                      setSiteId(row.id);
-                      navigate('/');
-                    }}
-                  >
-                    查看数据
-                  </Button>
-                  <Button type="link" size="small" onClick={() => openEdit(row)}>
-                    编辑
-                  </Button>
-                  <Popconfirm
-                    title="删除该站点？"
-                    description="不会删除历史统计数据，但将无法再上报到此 ID。"
-                    onConfirm={() => void onDelete(row)}
-                  >
-                    <Button type="link" size="small" danger>
-                      删除
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              ),
-            },
-          ]}
-        />
-      </Card>
+      <div className="page-body sites-body">
+        <Card className="chart-card page-fill-card sites-list-card" bordered>
+          <div className="page-fill-scroll">
+            <Table
+              className="utility-table"
+              loading={loading}
+              rowKey="id"
+              dataSource={sites}
+              pagination={false}
+              columns={[
+                {
+                  title: '名称',
+                  dataIndex: 'name',
+                  render: (name: string, row: Site) => (
+                    <Space>
+                      <strong>{name}</strong>
+                      {row.id === siteId ? (
+                        <Typography.Text type="secondary">当前</Typography.Text>
+                      ) : null}
+                    </Space>
+                  ),
+                },
+                {
+                  title: 'Site ID',
+                  dataIndex: 'id',
+                  render: (id: string) => <code>{id}</code>,
+                },
+                {
+                  title: '域名',
+                  dataIndex: 'domain',
+                  render: (d: string) => d || '—',
+                },
+                {
+                  title: '操作',
+                  key: 'actions',
+                  width: 220,
+                  render: (_: unknown, row: Site) => (
+                    <Space size="small">
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => {
+                          setSiteId(row.id);
+                          navigate('/');
+                        }}
+                      >
+                        查看数据
+                      </Button>
+                      <Button type="link" size="small" onClick={() => openEdit(row)}>
+                        编辑
+                      </Button>
+                      <Popconfirm
+                        title="删除该站点？"
+                        description="不会删除历史统计数据，但将无法再上报到此 ID。"
+                        onConfirm={() => void onDelete(row)}
+                      >
+                        <Button type="link" size="small" danger>
+                          删除
+                        </Button>
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        </Card>
 
-      <Card className="chart-card" bordered title="当前站点埋点代码">
-        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-          将以下代码放入网站 <code>&lt;head&gt;</code> 或页脚。Site ID：
-          <code>{siteId}</code>
-        </Typography.Paragraph>
-        <pre className="snippet-box">{snippet}</pre>
-        <Button icon={<CopyOutlined />} onClick={() => void copySnippet()}>
-          复制代码
-        </Button>
-      </Card>
+        <Card className="chart-card sites-snippet-card" bordered title="当前站点埋点代码">
+          <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+            将以下代码放入网站 <code>&lt;head&gt;</code> 或页脚。Site ID：
+            <code>{siteId}</code>
+          </Typography.Paragraph>
+          <pre className="snippet-box">{snippet}</pre>
+          <Button icon={<CopyOutlined />} onClick={() => void copySnippet()}>
+            复制代码
+          </Button>
+        </Card>
+      </div>
 
       <Modal
         title={editing ? '编辑站点' : '新建站点'}

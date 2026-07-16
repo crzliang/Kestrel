@@ -33,26 +33,30 @@ export default function PagesPage() {
   }, [siteId]);
 
   return (
-    <div className="page">
+    <div className="page pages-page">
       <PageHeader title="页面分析" description="今日各页面浏览量排行。" />
       {error && (
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 16 }} />
       )}
-      <Card className="chart-card" bordered>
-        <Spin spinning={loading}>
-          <Table
-            className="utility-table"
-            size="middle"
-            rowKey="path"
-            dataSource={data?.ranking ?? []}
-            pagination={{ pageSize: 20 }}
-            columns={[
-              { title: '路径', dataIndex: 'path', ellipsis: true },
-              { title: 'PV', dataIndex: 'pv', width: 100 },
-            ]}
-          />
-        </Spin>
-      </Card>
+      <div className="page-body">
+        <Card className="chart-card page-fill-card" bordered>
+          <Spin spinning={loading} className="dashboard-spin">
+            <div className="page-fill-scroll">
+              <Table
+                className="utility-table"
+                size="middle"
+                rowKey="path"
+                dataSource={data?.ranking ?? []}
+                pagination={{ pageSize: 20 }}
+                columns={[
+                  { title: '路径', dataIndex: 'path', ellipsis: true },
+                  { title: 'PV', dataIndex: 'pv', width: 100 },
+                ]}
+              />
+            </div>
+          </Spin>
+        </Card>
+      </div>
     </div>
   );
 }
