@@ -5,26 +5,22 @@ import {
   SettingOutlined,
   AppstoreOutlined,
   SearchOutlined,
-  DashboardOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import type { Site } from '@kestrel/shared';
 import Sparkline from './Sparkline';
 import { useSettingsStore } from '../store/settings';
 import {
-  ALL_SITES_DESC,
   ALL_SITES_ID,
   ALL_SITES_LABEL,
   isAllSites,
 } from '../constants/sites';
-import type { SiteSummary } from '../store/site';
 
 type SiteSidebarProps = {
   sites: Site[];
   siteId: string;
   sparklines: Record<string, number[]>;
-  allSparkline: number[];
-  allSummary: SiteSummary;
   loading?: boolean;
   onSelect: (id: string) => void;
 };
@@ -40,8 +36,8 @@ function SiteAvatar({ site }: { site: Site }) {
         className="site-avatar-img"
         src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
         alt=""
-        width={32}
-        height={32}
+        width={28}
+        height={28}
         onError={() => setFailed(true)}
       />
     );
@@ -73,15 +69,16 @@ export default function SiteSidebar({
   sites,
   siteId,
   sparklines,
-  allSparkline,
-  allSummary,
   loading,
   onSelect,
 }: SiteSidebarProps) {
   const location = useLocation();
   const settings = useSettingsStore((s) => s.settings);
   const [query, setQuery] = useState('');
-  const boardActive = isAllSites(siteId);
+  const overviewActive =
+    isAllSites(siteId) &&
+    location.pathname !== '/sites' &&
+    location.pathname !== '/settings';
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -109,36 +106,21 @@ export default function SiteSidebar({
       </Link>
 
       <div className="site-sidebar-main">
-        <button
-          type="button"
-          className={`site-board${boardActive ? ' is-active' : ''}`}
-          onClick={() => onSelect(ALL_SITES_ID)}
-        >
-          <span className="site-board-icon" aria-hidden>
-            <DashboardOutlined />
-          </span>
-          <span className="site-board-body">
-            <span className="site-board-title">{ALL_SITES_LABEL}</span>
-            <span className="site-board-meta">
-              {ALL_SITES_DESC}
-              {sites.length > 0 ? ` · ${sites.length}` : ''}
+        <div className="site-sidebar-section">
+          <button
+            type="button"
+            className={`site-overview${overviewActive ? ' is-active' : ''}`}
+            onClick={() => onSelect(ALL_SITES_ID)}
+          >
+            <span className="site-overview-icon" aria-hidden>
+              <ApartmentOutlined />
             </span>
-            <span className="site-board-stats">
-              <span>
-                在线 <strong>{allSummary.online}</strong>
-              </span>
-              <span>
-                今日 <strong>{allSummary.pvToday.toLocaleString()}</strong>
-              </span>
-            </span>
-          </span>
-          <Sparkline
-            className="site-board-spark"
-            values={allSparkline}
-            width={56}
-            height={28}
-          />
-        </button>
+            <span className="site-overview-label">{ALL_SITES_LABEL}</span>
+            {sites.length > 0 ? (
+              <span className="site-overview-count">{sites.length}</span>
+            ) : null}
+          </button>
+        </div>
 
         <div className="site-sidebar-toolbar">
           <div className="site-sidebar-heading">
@@ -205,8 +187,8 @@ export default function SiteSidebar({
                 <Sparkline
                   className="site-spark"
                   values={spark}
-                  width={48}
-                  height={20}
+                  width={44}
+                  height={18}
                 />
               </button>
             );

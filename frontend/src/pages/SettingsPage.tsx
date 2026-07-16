@@ -11,7 +11,7 @@ import {
   Upload,
   message,
 } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import { UploadOutlined, LogoutOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import QRCode from 'qrcode';
 import PageHeader from '../components/PageHeader';
@@ -57,6 +57,7 @@ export default function SettingsPage() {
   const refresh = useSettingsStore((s) => s.refresh);
   const account = useAuthStore((s) => s.account);
   const setAccount = useAuthStore((s) => s.setAccount);
+  const logout = useAuthStore((s) => s.logout);
 
   const [brandForm] = Form.useForm<BrandForm>();
   const [passwordForm] = Form.useForm<PasswordForm>();
@@ -210,7 +211,19 @@ export default function SettingsPage() {
     <div className="page settings-page">
       <PageHeader
         title="系统设置"
-        description="配置控制台品牌、登录密码与双因素认证。"
+        description={
+          account
+            ? `配置控制台品牌、登录密码与双因素认证。当前账号 ${account.displayName}（@${account.username}）`
+            : '配置控制台品牌、登录密码与双因素认证。'
+        }
+        extra={
+          <Button
+            icon={<LogoutOutlined />}
+            onClick={() => void logout()}
+          >
+            退出登录
+          </Button>
+        }
       />
 
       <div className="settings-stack">

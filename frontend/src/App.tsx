@@ -1,10 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { Layout, Button, Dropdown, Tooltip, Typography } from 'antd';
+import { Layout, Button, Tooltip } from 'antd';
 import {
   MoonOutlined,
   SunOutlined,
-  UserOutlined,
-  LogoutOutlined,
 } from '@ant-design/icons';
 import {
   Link,
@@ -57,8 +55,6 @@ export default function App() {
     setSiteId,
     sites,
     sparklines,
-    allSparkline,
-    allSummary,
     refreshSites,
     loading,
   } = useSiteStore();
@@ -67,7 +63,6 @@ export default function App() {
   const account = useAuthStore((s) => s.account);
   const bootstrapped = useAuthStore((s) => s.bootstrapped);
   const bootstrap = useAuthStore((s) => s.bootstrap);
-  const logout = useAuthStore((s) => s.logout);
   const refreshSettings = useSettingsStore((s) => s.refresh);
   const brandTitle = useSettingsStore((s) => s.settings.title);
 
@@ -151,8 +146,6 @@ export default function App() {
           sites={sites}
           siteId={siteId}
           sparklines={sparklines}
-          allSparkline={allSparkline}
-          allSummary={allSummary}
           loading={loading}
           onSelect={onSelectSite}
         />
@@ -175,41 +168,6 @@ export default function App() {
             )}
           </div>
           <div className="header-actions">
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'profile',
-                    disabled: true,
-                    label: (
-                      <span>
-                        {account.displayName}
-                        <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
-                          @{account.username}
-                        </Typography.Text>
-                      </span>
-                    ),
-                  },
-                  { type: 'divider' },
-                  {
-                    key: 'settings',
-                    icon: <UserOutlined />,
-                    label: '系统设置',
-                    onClick: () => navigate('/settings'),
-                  },
-                  {
-                    key: 'logout',
-                    icon: <LogoutOutlined />,
-                    label: '退出登录',
-                    onClick: () => void logout(),
-                  },
-                ],
-              }}
-            >
-              <Button className="theme-toggle" icon={<UserOutlined />}>
-                {account.displayName}
-              </Button>
-            </Dropdown>
             <Tooltip title={mode === 'light' ? '切换深色' : '切换浅色'}>
               <Button
                 className="theme-toggle"
@@ -221,7 +179,7 @@ export default function App() {
           </div>
         </Header>
 
-        {!ADMIN_PATHS.has(location.pathname) && (
+        {!ADMIN_PATHS.has(location.pathname) && !isAllSites(siteId) && (
           <nav className="top-tabs" aria-label="分析模块">
             {TABS.map((tab) => (
               <Link

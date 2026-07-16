@@ -29,7 +29,7 @@ export default function AllSitesGuard({
         description="本页需要选择具体站点。可先回到总览查看全部汇总，或从侧栏点选一个站点。"
         action={
           <Button size="small" type="primary" onClick={() => navigate('/')}>
-            打开默认看板
+            打开站点总览
           </Button>
         }
         style={{ marginBottom: 16 }}
