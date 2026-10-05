@@ -22,5 +22,5 @@ dist/
 # Tracker size report
 tracking-script/stats.html
 
-# Local preview fixtures (generated, not tracked)
+# Local mock counters (generated, not tracked)
 .kestrel/

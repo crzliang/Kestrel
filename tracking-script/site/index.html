@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kestrel</title>
+  <meta name="description" content="页面请求到达边缘且主机名在白名单内时累计四个整数，脚本只负责把数字填回页面。">
+  <meta name="theme-color" content="#16a34a">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --bg-end: #f1f5f9;
+      --card: #ffffff;
+      --card-soft: #f1f5f9;
+      --text: #0f172a;
+      --muted: #64748b;
+      --muted-strong: #475569;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --brand: #16a34a;
+      --brand-dark: #15803d;
+      --brand-soft: rgba(22, 163, 74, 0.1);
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.1);
+      --warning: #b45309;
+      --warning-soft: rgba(245, 158, 11, 0.11);
+      --shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --grid: rgba(15, 23, 42, 0.025);
+      --radius-xl: 12px;
+      --radius-lg: 8px;
+      --radius-sm: 6px;
+      --max: 920px;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #020617;
+      --bg-end: #0f172a;
+      --card: rgba(15, 23, 42, 0.88);
+      --card-soft: #020617;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --muted-strong: #cbd5e1;
+      --line: rgba(51, 65, 85, 0.9);
+      --line-strong: rgba(100, 116, 139, 0.9);
+      --brand-dark: #86efac;
+      --brand-soft: rgba(22, 163, 74, 0.16);
+      --accent: #93c5fd;
+      --accent-soft: rgba(37, 99, 235, 0.18);
+      --warning: #fbbf24;
+      --warning-soft: rgba(245, 158, 11, 0.12);
+      --shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --grid: rgba(226, 232, 240, 0.035);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-end) 100%);
+      background-size: 28px 28px, 28px 28px, auto;
+    }
+    button { font: inherit; }
+    button:focus-visible {
+      outline: 2px solid rgba(37, 99, 235, 0.45);
+      outline-offset: 2px;
+    }
+    .page {
+      width: min(var(--max), calc(100% - 32px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+    .hero { padding: 0 0 6px; }
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .kicker {
+      margin: 0 0 7px;
+      color: var(--brand-dark);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: clamp(30px, 5vw, 46px);
+      font-weight: 760;
+      letter-spacing: -0.03em;
+      line-height: 1.06;
+    }
+    .subtitle {
+      max-width: 38rem;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+    }
+    .theme-toggle:hover { border-color: var(--line-strong); }
+    .theme-icon {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    html[data-theme="light"] .theme-icon-sun,
+    html[data-theme="dark"] .theme-icon-moon { display: none; }
+    .theme-toggle-text { font-size: 13px; font-weight: 600; }
+    .badge {
+      padding: 7px 10px;
+      border-radius: var(--radius-lg);
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(37, 99, 235, 0.16);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .stat {
+      min-width: 0;
+      min-height: 112px;
+      padding: 14px 14px 12px;
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-sm);
+    }
+    .stat-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .stat-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .stat-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .stat-icon.green { background: var(--brand-soft); color: var(--brand-dark); }
+    .stat-icon.blue { background: var(--accent-soft); color: var(--accent); }
+    .stat-icon.amber { background: var(--warning-soft); color: var(--warning); }
+    .stat-icon.slate { background: var(--card-soft); color: var(--muted-strong); border: 1px solid var(--line); }
+    .stat-label {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 650;
+      color: var(--text);
+    }
+    .stat-num {
+      margin: 0;
+      min-height: 1.15em;
+      font-size: clamp(26px, 3vw, 32px);
+      font-weight: 760;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .stat-field {
+      margin: 6px 0 0;
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .tips {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius-lg);
+      background: var(--warning-soft);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      color: var(--warning);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .tips code, .steps code {
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    .tips code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.55);
+      color: inherit;
+    }
+    html[data-theme="dark"] .tips code { background: rgba(15, 23, 42, 0.45); }
+    .panel {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: var(--radius-xl);
+      background: var(--card);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .panel-head h2 { margin-bottom: 0; }
+    .eyebrow {
+      margin: 0 0 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    pre {
+      margin: 0;
+      max-width: 100%;
+      padding: 12px 14px;
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+      background: var(--card-soft);
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--muted-strong);
+      font-size: 12px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .copy-btn:hover { border-color: var(--line-strong); color: var(--text); }
+    .copy-btn.copied {
+      background: var(--brand-soft);
+      border-color: rgba(22, 163, 74, 0.35);
+      color: var(--brand-dark);
+    }
+    .steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+    .steps li {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .steps li span {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--brand-soft);
+      color: var(--brand-dark);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .steps code { color: var(--accent); font-size: 0.92em; }
+    .footer {
+      margin-top: 28px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    @media (max-width: 860px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 24px, var(--max)); padding-top: 22px; }
+      .hero-top { flex-direction: column; }
+      .hero-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+      .stats { grid-template-columns: 1fr; }
+      h1 { font-size: 30px; }
+      .badge { white-space: normal; }
+    }
+  </style>
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem('kestrel-theme'); } catch (err) { stored = null; }
+      var theme = stored === 'light' || stored === 'dark'
+        ? stored
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <p class="kicker">页面计数</p>
+          <h1>Kestrel</h1>
+          <p class="subtitle">页面请求到达边缘、并且主机名在站点白名单里时，累计四个整数。页面上的脚本只把这四个数填回来。</p>
+        </div>
+        <div class="hero-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z"></path></svg>
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"></path></svg>
+            <span class="theme-toggle-text" id="theme-toggle-text">暗色</span>
+          </button>
+          <span class="badge">脚本只读 · 四个整数</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <article class="stat">
+          <div class="stat-top">
+            <div class="stat-icon green" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="M8 16v-4"></path><path d="M12 16V8"></path><path d="M16 16v-6"></path></svg>
+            </div>
+            <p class="stat-label">站点访问</p>
+          </div>
+          <p class="stat-num"><span id="kestrel_container_site_pv"><span id="kestrel_value_site_pv">—</span></span></p>
+          <p class="stat-field">site_pv</p>
+        </article>
+        <article class="stat">
+          <div class="stat-top">
+            <div class="stat-icon blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M7 3h8l4 4v14H7z"></path><path d="M15 3v4h4"></path><path d="M10 13h6"></path><path d="M10 17h4"></path></svg>
+            </div>
+            <p class="stat-label">本页访问</p>
+          </div>
+          <p class="stat-num"><span id="kestrel_container_page_pv"><span id="kestrel_value_page_pv">—</span></span></p>
+          <p class="stat-field">page_pv</p>
+        </article>
+        <article class="stat">
+          <div class="stat-top">
+            <div class="stat-icon amber" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M16 19v-1a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v1"></path><circle cx="10" cy="8" r="3"></circle><path d="M20 19v-1a3 3 0 0 0-2.2-2.9"></path><path d="M16 5.1a3 3 0 0 1 0 5.8"></path></svg>
+            </div>
+            <p class="stat-label">站点访客</p>
+          </div>
+          <p class="stat-num"><span id="kestrel_container_site_uv"><span id="kestrel_value_site_uv">—</span></span></p>
+          <p class="stat-field">site_uv</p>
+        </article>
+        <article class="stat">
+          <div class="stat-top">
+            <div class="stat-icon slate" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"></circle><path d="M6 19v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1"></path></svg>
+            </div>
+            <p class="stat-label">本页访客</p>
+          </div>
+          <p class="stat-num"><span id="kestrel_container_page_uv"><span id="kestrel_value_page_uv">—</span></span></p>
+          <p class="stat-field">page_uv</p>
+        </article>
+      </div>
+
+      <p class="tips">本页自己的脚本使用站点 <code>%%SITE_ID%%</code>（构建时取 <code>sites.json</code> 里第一个写了主机名的站点）和相对地址 <code>/v1/track</code>。直接打开 <code>127.0.0.1</code> 时，只有把该主机名写进白名单才会给这一次打开加一。</p>
+    </header>
+
+    <section class="panel" aria-labelledby="embed-heading">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">HTML</p>
+          <h2 id="embed-heading">嵌入代码</h2>
+        </div>
+        <button class="copy-btn" id="copy-embed" type="button">复制</button>
+      </div>
+      <pre id="embed-code">&lt;script
+  defer
+  src="https://your-domain.example/kestrel.js?v=%%VERSION%%"
+  data-site="%%SITE_ID%%"
+  data-endpoint="https://your-domain.example/v1/track"
+&gt;&lt;/script&gt;
+&lt;span id="kestrel_container_site_pv" style="display:none"&gt;本站访问 &lt;span id="kestrel_value_site_pv"&gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="kestrel_container_page_pv" style="display:none"&gt;本页访问 &lt;span id="kestrel_value_page_pv"&gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="kestrel_container_site_uv" style="display:none"&gt;本站访客 &lt;span id="kestrel_value_site_uv"&gt;&lt;/span&gt;&lt;/span&gt;
+&lt;span id="kestrel_container_page_uv" style="display:none"&gt;本页访客 &lt;span id="kestrel_value_page_uv"&gt;&lt;/span&gt;&lt;/span&gt;</pre>
+    </section>
+
+    <section class="panel" aria-labelledby="guide-heading">
+      <p class="eyebrow">步骤</p>
+      <h2 id="guide-heading">使用说明</h2>
+      <ol class="steps">
+        <li><span>1</span><div>把上面的脚本和四个元素放进要显示数字的 HTML。<code>data-site</code> 填 <code>sites.json</code> 里的站点 id。脚本请求 <code>GET /v1/track</code>，把站点访问、本页访问、站点访客、本页访客写入 <code>kestrel_value_*</code>，再把 <code>kestrel_container_*</code> 显示出来。这次读取不会加一。</div></li>
+        <li><span>2</span><div>数字增加发生在 HTML 文档请求到达本边缘时。HTTP Host 必须和该站点在 <code>sites.json</code> 里的某个主机名一致。静态资源、<code>kestrel.js</code> 和 <code>/v1</code> 接口不计。</div></li>
+        <li><span>3</span><div>页面如果没有经过这个边缘，访问量不会增加。脚本仍然可以读出已经记下的四个数。</div></li>
+        <li><span>4</span><div><code>POST /v1/track</code> 返回 405，不会增加 PV 或 UV。</div></li>
+      </ol>
+    </section>
+
+    <footer class="footer">Kestrel · 计数发生在 HTML 文档到达边缘时</footer>
+  </div>
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var button = document.getElementById('theme-toggle');
+      var label = document.getElementById('theme-toggle-text');
+      function sync() {
+        var dark = root.getAttribute('data-theme') === 'dark';
+        if (label) label.textContent = dark ? '亮色' : '暗色';
+        if (button) {
+          button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+          button.setAttribute('aria-label', dark ? '切换为亮色' : '切换为暗色');
+        }
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', dark ? '#020617' : '#16a34a');
+      }
+      sync();
+      if (button) {
+        button.addEventListener('click', function () {
+          var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          root.setAttribute('data-theme', next);
+          try { localStorage.setItem('kestrel-theme', next); } catch (err) { /* keep the in-page choice */ }
+          sync();
+        });
+      }
+
+      var node = document.getElementById('embed-code');
+      var copy = document.getElementById('copy-embed');
+      if (node && location.origin && location.origin !== 'null') {
+        node.textContent = node.textContent.replaceAll('https://your-domain.example', location.origin);
+      }
+      if (!node || !copy) return;
+      copy.addEventListener('click', function () {
+        var text = node.textContent.trim();
+        var done = function () {
+          copy.textContent = '已复制';
+          copy.classList.add('copied');
+          window.setTimeout(function () {
+            copy.textContent = '复制';
+            copy.classList.remove('copied');
+          }, 1600);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () { fallback(text, done); });
+        } else {
+          fallback(text, done);
+        }
+      });
+      function fallback(text, done) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        try { document.execCommand('copy'); done(); } catch (err) { /* leave the snippet selected for a manual copy */ }
+        area.remove();
+      }
+    })();
+  </script>
+  <script
+    defer
+    src="/kestrel.js?v=%%VERSION%%"
+    data-site="%%SITE_ID%%"
+    data-endpoint="/v1/track"
+  ></script>
+</body>
+</html>

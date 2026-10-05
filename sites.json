@@ -1,0 +1,16 @@
+{
+  "sites": [
+    {
+      "id": "kestrel",
+      "domain": ["kestrel.crzliang.cn"]
+    },
+    {
+      "id": "www",
+      "domain": ["www.crzliang.cn"]
+    },
+    {
+      "id": "blog",
+      "domain": ["blog.crzliang.cn"]
+    }
+  ]
+}

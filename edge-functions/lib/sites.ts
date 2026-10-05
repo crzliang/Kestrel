@@ -1,139 +1,41 @@
-import type { Site } from '@kestrel/shared';
-import { kvGetJson, kvPutJson, getKv } from './storage';
+import {
+  isRequestHostAllowed,
+  parseSitesConfig,
+  type Site,
+} from '@kestrel/shared';
+import rawConfig from '../../sites.json';
 
-const INDEX_KEY = 'sites_index';
-
-export function siteConfigKey(siteId: string): string {
-  return `config_${siteId}`;
+function cloneSite(site: Site): Site {
+  return { id: site.id, domain: [...site.domain] };
 }
 
-function newSiteId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
+/**
+ * Hostnames are read from the repo file `sites.json` when this module loads.
+ * The first site whose allowlist contains the host wins. An empty allowlist never matches.
+ */
+const sites: Site[] = parseSitesConfig(rawConfig);
+
+export function matchSiteByHost(
+  list: readonly Site[],
+  host: string,
+): Site | null {
+  for (const site of list) {
+    if (isRequestHostAllowed(host, site.domain)) return site;
   }
-  const hex = Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 16).toString(16),
-  ).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20)}`;
+  return null;
 }
 
-export async function listSiteIds(): Promise<string[]> {
-  return (await kvGetJson<string[]>(INDEX_KEY)) ?? [];
+export function listSites(): Site[] {
+  return sites.map(cloneSite);
 }
 
-async function saveSiteIds(ids: string[]): Promise<void> {
-  await kvPutJson(INDEX_KEY, ids);
+export function getSite(siteId: string): Site | null {
+  const id = siteId.trim().toLowerCase();
+  const site = sites.find((item) => item.id === id);
+  return site ? cloneSite(site) : null;
 }
 
-export async function getSite(siteId: string): Promise<Site | null> {
-  return kvGetJson<Site>(siteConfigKey(siteId));
-}
-
-export async function listSites(): Promise<Site[]> {
-  const ids = await listSiteIds();
-  const sites: Site[] = [];
-  for (const id of ids) {
-    const site = await getSite(id);
-    if (site) sites.push(site);
-  }
-  return sites.sort((a, b) => b.createdAt - a.createdAt);
-}
-
-export async function ensureDemoSite(): Promise<Site[]> {
-  const existing = await listSites();
-  if (existing.length > 0) return existing;
-
-  const now = Date.now();
-  const demo: Site = {
-    id: 'demo',
-    name: 'Demo Site',
-    domain: 'example.com',
-    createdAt: now,
-    updatedAt: now,
-  };
-  await kvPutJson(siteConfigKey(demo.id), demo);
-  await saveSiteIds([demo.id]);
-  return [demo];
-}
-
-export async function createSite(input: {
-  id?: string;
-  name: string;
-  domain?: string;
-}): Promise<Site> {
-  const id = (input.id?.trim() || newSiteId()).toLowerCase();
-  const existing = await getSite(id);
-  if (existing) {
-    throw Object.assign(new Error('site_exists'), { status: 409 });
-  }
-
-  const now = Date.now();
-  const site: Site = {
-    id,
-    name: input.name.trim(),
-    domain: (input.domain ?? '').trim(),
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await kvPutJson(siteConfigKey(id), site);
-  const ids = await listSiteIds();
-  if (!ids.includes(id)) {
-    ids.push(id);
-    await saveSiteIds(ids);
-  }
-  return site;
-}
-
-export async function updateSite(
-  siteId: string,
-  patch: { name?: string; domain?: string },
-): Promise<Site> {
-  const current = await getSite(siteId);
-  if (!current) {
-    throw Object.assign(new Error('not_found'), { status: 404 });
-  }
-
-  const next: Site = {
-    ...current,
-    name: patch.name?.trim() ?? current.name,
-    domain: patch.domain !== undefined ? patch.domain.trim() : current.domain,
-    updatedAt: Date.now(),
-  };
-  await kvPutJson(siteConfigKey(siteId), next);
-  return next;
-}
-
-export async function deleteSite(siteId: string): Promise<void> {
-  const current = await getSite(siteId);
-  if (!current) {
-    throw Object.assign(new Error('not_found'), { status: 404 });
-  }
-  await getKv().delete(siteConfigKey(siteId));
-  const ids = (await listSiteIds()).filter((id) => id !== siteId);
-  await saveSiteIds(ids);
-}
-
-export async function assertSiteExists(siteId: string): Promise<Site> {
-  const site = await getSite(siteId);
-  if (!site) {
-    // Auto-bootstrap unknown sites into index on first track for smoother onboarding
-    // only if index is empty; otherwise reject.
-    const ids = await listSiteIds();
-    if (ids.length === 0) {
-      const now = Date.now();
-      const created: Site = {
-        id: siteId,
-        name: siteId,
-        domain: '',
-        createdAt: now,
-        updatedAt: now,
-      };
-      await kvPutJson(siteConfigKey(siteId), created);
-      await saveSiteIds([siteId]);
-      return created;
-    }
-    throw Object.assign(new Error('unknown_site'), { status: 404 });
-  }
-  return site;
+export function findSiteByHost(host: string): Site | null {
+  const site = matchSiteByHost(sites, host);
+  return site ? cloneSite(site) : null;
 }

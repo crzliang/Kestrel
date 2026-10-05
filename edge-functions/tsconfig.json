@@ -5,6 +5,6 @@
     "types": [],
     "noEmit": true
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "../middleware.ts"],
   "exclude": ["node_modules"]
 }

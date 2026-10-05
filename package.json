@@ -2,29 +2,22 @@
   "name": "kestrel-analytics",
   "private": true,
   "version": "0.1.0",
-  "description": "Lightweight realtime web analytics on Tencent EdgeOne",
+  "description": "Lightweight page counter on Tencent EdgeOne",
   "workspaces": [
     "packages/*",
-    "frontend",
     "tracking-script",
     "edge-functions"
   ],
   "scripts": {
-    "dev": "npm run dev -w @kestrel/frontend",
-    "dev:mock": "npm run seed:mock && node scripts/mock-api.mjs",
-    "dev:all": "npm run seed:mock && npx concurrently -k -n api,web -c green,cyan \"node scripts/mock-api.mjs\" \"npm run dev -w @kestrel/frontend\"",
-    "seed:mock": "node scripts/seed-mock.mjs",
-    "mock:api": "node scripts/mock-api.mjs",
+    "dev": "node scripts/mock-api.mjs",
     "dev:tracker": "npm run dev -w @kestrel/tracking-script",
-    "build": "npm run build -w @kestrel/shared && npm run build -w @kestrel/tracking-script && npm run build -w @kestrel/frontend",
+    "build": "npm run build -w @kestrel/shared && npm run build:tracker",
     "build:tracker": "npm run build -w @kestrel/tracking-script",
-    "build:frontend": "npm run build -w @kestrel/frontend",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "KESTREL_STORAGE=memory npx tsx scripts/smoke.ts",
     "test:ci": "npm run build -w @kestrel/shared && npm run build:tracker && npm run typecheck && npm test"
   },
   "devDependencies": {
-    "concurrently": "^9.0.0",
     "tsx": "^4.19.0"
   },
   "engines": {

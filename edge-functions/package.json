@@ -7,13 +7,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@edgeone/pages-blob": "^0.0.14",
     "@kestrel/shared": "0.1.0",
-    "ua-parser-js": "^1.0.39",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/ua-parser-js": "^0.7.39",
     "typescript": "^5.5.4"
   }
 }

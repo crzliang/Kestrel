@@ -1,163 +1,60 @@
 import { z } from 'zod';
 
-export const TrackEventSchema = z.object({
-  siteId: z.string().min(1).max(64),
-  eventType: z.enum(['pageview', 'click', 'custom']),
-  url: z.string().max(2048),
-  referrer: z.string().max(2048).default(''),
-  screenWidth: z.number().int().positive().max(10000),
-  timestamp: z.number().int().positive(),
-  visitorId: z.string().min(8).max(64),
+const kvToken = /^[A-Za-z0-9_]+$/;
+
+/** Public read of the four counters. This schema never accepts a visitor id or a page URL. */
+export const CountQuerySchema = z.object({
+  siteId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(kvToken)
+    .transform((value) => value.toLowerCase()),
+  path: z.string().max(2048).optional(),
 });
 
-export type TrackEvent = z.infer<typeof TrackEventSchema>;
+export type CountQuery = z.infer<typeof CountQuerySchema>;
 
-export type RealtimeStats = {
-  siteId: string;
-  pvToday: number;
-  online: number;
-  ts: number;
-};
+export const TRACK_POST_ERROR = 'not_counted';
 
-export type GeoStats = {
-  siteId: string;
-  date: string;
-  countries: Record<string, number>;
-  ranking: Array<{ country: string; pv: number }>;
-  ts: number;
-};
+/** Shown when a client still POSTs the old busuanzi-style payload. */
+export const TRACK_POST_MESSAGE =
+  'POST /v1/track 不会增加 PV/UV，请求体里的 url 和 visitorId 会被忽略。只有 HTML 文档请求到达本 EdgeOne 项目（根目录 middleware）且 HTTP Host 属于 sites.json 里该站点的域名时才计数。静态资源、/v1 接口和只读请求不计。读取四个整数请用 GET /v1/track?siteId=&path=。';
 
-export type SourceStats = {
-  siteId: string;
-  date: string;
-  /** host → pv；直接访问为 "(direct)" */
-  hosts: Record<string, number>;
-  ranking: Array<{ host: string; pv: number; channel: string }>;
-  /** @deprecated 兼容旧字段，等同 hosts */
-  sources: Record<string, number>;
-  ts: number;
-};
+export const VisitCountsSchema = z.object({
+  site_pv: z.number().int().nonnegative(),
+  page_pv: z.number().int().nonnegative(),
+  site_uv: z.number().int().nonnegative(),
+  page_uv: z.number().int().nonnegative(),
+});
 
-export type PageStats = {
-  siteId: string;
-  date: string;
-  pages: Record<string, number>;
-  ranking: Array<{ path: string; pv: number }>;
-  ts: number;
-};
-
-export type IpStats = {
-  siteId: string;
-  date: string;
-  ips: Record<string, number>;
-  ranking: Array<{ ip: string; pv: number }>;
-  ts: number;
-};
-
-export type DeviceStats = {
-  siteId: string;
-  date: string;
-  devices: {
-    os: Record<string, number>;
-    browser: Record<string, number>;
-    type: Record<string, number>;
-  };
-  ranking: {
-    os: Array<{ name: string; pv: number }>;
-    browser: Array<{ name: string; pv: number }>;
-    type: Array<{ name: string; pv: number }>;
-    fingerprints: Array<{
-      fingerprint: string;
-      browser: string;
-      version: string;
-      pv: number;
-    }>;
-  };
-  ts: number;
-};
-
-export type BehaviorEvent = {
-  timestamp: number;
-  receivedAt: number;
-  visitorId: string;
-  eventType: string;
-  path: string;
-  url: string;
-  referrer: string;
-  referrerHost: string;
-  source: string;
-  country: string;
-  /** Client IP as seen by the edge (may be proxy-facing). */
-  ip: string;
-  /** SHA-256 short hash of IP — used for rate limiting */
-  ipHash: string;
-  /** Short hash of User-Agent — browser fingerprint, not raw UA */
-  uaFingerprint: string;
-  screenWidth: number;
-  device: {
-    os: string;
-    browser: string;
-    version: string;
-    type: string;
-  };
-};
-
-export type BehaviorStats = {
-  siteId: string;
-  events: BehaviorEvent[];
-  startDate?: string | null;
-  endDate?: string | null;
-  note: string;
-  ts: number;
-};
-
-export type DailyAggregate = {
-  pv: number;
-  uv: number;
-  sources: Record<string, number>;
-  pages: Record<string, number>;
-  countries: Record<string, number>;
-  devices: {
-    os: Record<string, number>;
-    browser: Record<string, number>;
-    type: Record<string, number>;
-  };
-};
+export type VisitCounts = z.infer<typeof VisitCountsSchema>;
 
 export {
   SiteSchema,
-  CreateSiteSchema,
-  UpdateSiteSchema,
+  SitesFileSchema,
+  parseSitesConfig,
   type Site,
-  type CreateSiteInput,
-  type UpdateSiteInput,
-} from './site';
+} from './site.js';
 
 export {
-  AccountRoleSchema,
-  AccountSchema,
-  AccountRecordSchema,
-  CreateAccountSchema,
-  UpdateAccountSchema,
-  LoginSchema,
-  TotpConfirmSchema,
-  TotpDisableSchema,
-  type AccountRole,
-  type Account,
-  type AccountRecord,
-  type CreateAccountInput,
-  type UpdateAccountInput,
-  type LoginInput,
-  type TotpConfirmInput,
-  type TotpDisableInput,
-} from './account';
+  parseDomainAllowlist,
+  domainsFromStored,
+  hostnameFromUrl,
+  isHostnameAllowed,
+  isRequestHostAllowed,
+  normalizeHostname,
+  normalizeRequestHost,
+  type DomainAllowlistResult,
+} from './domain.js';
 
 export {
-  SystemSettingsSchema,
-  UpdateSystemSettingsSchema,
-  ChangePasswordSchema,
-  DEFAULT_SYSTEM_SETTINGS,
-  type SystemSettings,
-  type UpdateSystemSettingsInput,
-  type ChangePasswordInput,
-} from './settings';
+  VISITOR_COOKIE,
+  createVisitorId,
+  isDocumentNavigation,
+  sanitizeVisitorId,
+  visitorIdFromCookie,
+  visitorSetCookie,
+  type DocumentSignals,
+} from './visit.js';

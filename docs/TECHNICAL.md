@@ -1,263 +1,172 @@
-# 项目技术文档：Kestrel Analytics
+# 项目技术文档：Kestrel
 
-> 一个基于腾讯云 EdgeOne 构建的轻量级、实时网站分析工具。
+> 一个基于腾讯云 EdgeOne 的轻量页面计数。HTML 文档请求到达本边缘且 Host 命中站点固定域名时，累计站点 PV、页面 PV、站点 UV、页面 UV。
 
 ## 1. 项目概述
 
-**Kestrel Analytics** 是一款面向现代 Web 的隐私友好型网站分析工具。它旨在提供**实时、轻量、可自托管**的访客行为洞察。
+**Kestrel** 在边缘累计四个整数，页面脚本只把它们读出来填回页面。站点和主机名白名单来自仓库里的 `sites.json`，加载模块时读入。
 
 ### 核心目标
 
-- **实时性**：利用边缘计算能力，实现数据秒级采集与展示。
-- **轻量级**：前端追踪脚本 < 5KB，对网站性能几乎无影响。
-- **隐私优先**：默认不收集个人可识别信息（PII），符合 GDPR 要求。
-- **云原生**：完全基于腾讯云 EdgeOne 生态，无需维护服务器。
+- **轻量**：追踪脚本 gzip 后小于 5KB。
+- **隐私**：不存原始事件、明文 IP、来源、地理或设备。
+- **云原生**：Edge Functions + 项目根 middleware + KV，不需要应用服务器，也不使用 Blob。
 
-### 主要功能（MVP 阶段）
+### 产品范围
 
-1. **实时仪表盘**：展示当前在线人数、今日 PV/UV。
-2. **流量概览**：按时间维度（小时/天/周）展示访问趋势。
-3. **来源分析**：识别访客来源渠道（直接/搜索引擎/外链）。
-4. **页面分析**：查看各页面浏览量及用户停留时长。
-5. **设备分析**：统计操作系统、浏览器及设备类型分布。
-6. **地图浏览**：按国家展示今日访客分布（仅国家码，不存 IP；EdgeOne `request.eo.geo`）。
+1. **页面计数**：根目录 `middleware.ts` 在文档请求上记一次访问。`edge-functions` 的文件路由拦截不到静态 HTML（与静态资源冲突时优先走静态文件），所以计数不放在 `/v1` 函数里。
+2. **页面展示**：`GET /v1/track` 公开、只读，响应只有四个整数，绝不计数。
+3. **站点名单**：`sites.json` 列出站点 id 和主机名白名单。没有站点管理接口。
+
+`POST /v1/track` 保留为明确失败：405，`error` 为 `not_counted`，不读请求体，不增加 PV/UV。不再提供趋势、来源、地理、设备、IP、最近事件或在线人数。也不提供登录、控制台或 `/v1/stats/counts`。
 
 ## 2. 技术架构
-
-### 2.1 整体架构图
 
 ```mermaid
 flowchart TB
     subgraph Client [用户端]
-        A[网站/应用]
-        B[追踪脚本 SDK<br>< 5KB]
+        A[网站 HTML 页面]
+        B[追踪脚本]
     end
 
-    subgraph EdgeOne [腾讯云 EdgeOne 平台]
-        C[EdgeOne Pages<br>前端仪表盘]
-        D[Edge Functions<br>API 网关 & 数据处理]
-        E[KV 存储<br>实时计数/配置]
-        F[Blob 存储<br>事件明细/历史归档]
+    subgraph EdgeOne [腾讯云 EdgeOne 项目]
+        M[根目录 middleware]
+        C[sites.json]
+        D[Edge Functions /v1/track]
+        E[KV 累计计数与去重标记]
     end
 
-    subgraph External [外部系统]
-        G[邮件/Webhook<br>告警通知]
-    end
-
-    A -->|加载| B
-    B -->|发送事件| D
-    C -->|查询数据| D
-    D -->|读写高频数据| E
-    D -->|读写持久化数据| F
-    D -->|触发| G
+    A -->|文档请求 Host 命中固定域名| M
+    C -->|启动时读入| M
+    M -->|记一次| E
+    B -->|GET /v1/track 只读| D
+    C -->|启动时读入| D
+    D -->|读取| E
 ```
 
-### 2.2 数据流说明
+1. 固定域名必须解析到本 EdgeOne 项目。浏览器打开该主机名下的 HTML 时，middleware 先执行，再 `next()` 继续到静态页面或函数。
+2. 只处理 GET 的文档导航：`Sec-Fetch-Dest: document`，或者没有该头时 `Accept` 包含 `text/html`。响应需要是 200 且 `Content-Type` 含 `text/html`（304 也算）。静态资源、`kestrel.js`、`/v1/*`、预取、重定向都不计。
+3. HTTP Host（没有 Host 头时用平台给出的请求 URL 主机名）与 `sites.json` 里站点的 `domain` 做精确匹配。命中后用这次请求自己的 pathname 加查询串作为页面身份。请求体里的 url 不参与。
+4. 访客取 cookie `kestrel_vid`。没有或格式不合法时发一个新的（HttpOnly）。UV 去重键仍是 `seen_*`，但 id 只来自这个 cookie。
+5. 脚本用 `GET /v1/track?siteId=&path=` 把四个数写入 `kestrel_value_*`，并把 `kestrel_container_*` 设为 `inline`。这次 GET 不计 PV。
+6. 单页应用的 `pushState` 不会到达边缘，所以客户端路由不再单独计数。
 
-1. **采集端**：网站嵌入追踪脚本，用户访问时触发，发送事件数据至 EdgeOne 边缘节点。
-2. **处理端**：Edge Functions 接收事件，完成数据清洗、增强（如解析 User-Agent 获取设备信息），并执行预聚合逻辑。
-3. **存储端**：
-   - 实时计数（如当前在线、PV）写入 **KV**（最终一致性，高性能）。
-   - 原始事件明细及聚合后的历史数据写入 **Blob**（强一致性，持久化）。
-4. **展示端**：仪表盘前端通过 API 从 KV（实时数据）和 Blob（历史数据）读取并可视化。
+只把脚本嵌到别的网站、页面不经过本项目时，文档请求到不了 middleware，PV/UV 不会增加。脚本仍能读数。
 
-## 3. 技术栈详解
+## 3. 技术栈
 
-### 3.1 前端
-
-| 类别 | 技术选型 | 说明 |
+| 类别 | 选型 | 说明 |
 | :--- | :--- | :--- |
-| 框架 | **React 18** + **TypeScript** | 主流选择，生态完善，类型安全。 |
-| 构建工具 | **Vite** | 极速的开发体验和构建速度。 |
-| 路由 | **React Router v6** | 管理仪表盘多页面路由。 |
-| 状态管理 | **Zustand** | 轻量级状态管理。 |
-| UI 组件库 | **Ant Design** | 提供丰富的图表和数据展示组件。 |
-| 图表库 | **ECharts** | 用于绘制趋势图、饼图、热力图等。 |
-| HTTP 客户端 | 原生 `fetch` | 与后端 API 通信。 |
+| 边缘 | 项目根 `middleware.ts`；`edge-functions` 文件路由 | middleware 看全部请求；函数只服务 `GET/POST /v1/track` |
+| 站点名单 | 仓库根目录 `sites.json` | 启动时解析，不写入 KV |
+| 存储 | EdgeOne KV，绑定名 `kestrel_kv` | 只存四个计数和去重标记 |
+| 埋点 | esbuild 打成 `kestrel.js` | 只读四个数 |
 
-### 3.2 后端（Edge Functions）
+## 4. 数据模型
 
-| 类别 | 技术选型 | 说明 |
-| :--- | :--- | :--- |
-| 运行时 | **EdgeOne Edge Functions** | 基于 V8 引擎的边缘计算环境。 |
-| 语言 | **TypeScript** | 与前端共享类型定义，提升开发效率。 |
-| 路由 | 基于文件目录 | EdgeOne 原生支持按文件路径自动映射 API 路由。 |
-| 数据校验 | **Zod** | 校验请求参数，保障数据安全。 |
-| User-Agent 解析 | **ua-parser-js** | 从 User-Agent 中提取设备、浏览器、OS 信息。 |
+### 4.1 什么算一次访问
 
-### 3.3 存储
+没有「上报事件」请求体。一次访问是到达本边缘的 HTML 文档请求：
 
-| 存储类型 | 用途 | 数据示例 |
-| :--- | :--- | :--- |
-| **KV 存储** | 实时计数、配置项、Session 状态 | `pv:today` = 12345, `online:site_id` = 67 |
-| **Blob 存储** | 原始事件日志、按时间分区的聚合数据 | `/logs/2026/07/16/raw.ndjson`, `/aggregates/2026-07-16.json` |
+- Host 命中某个站点的 `domain`（字符串数组，不含协议、路径和端口）。
+- 比较忽略大小写，去掉末尾的点，端口不参与，精确匹配。不支持 `*.example.com`。`localhost` 与 `127.0.0.1` 可作为普通条目。
+- 白名单为空，或 Host 不在任何名单里：不计数，也不发访客 cookie。
+- 多个站点写了同一个主机名时，`sites.json` 里先出现的那个计数。
+- 页面身份是这次请求 URL 的 pathname 加查询串，不含域名。
 
-### 3.4 核心依赖库（后端 Edge Functions）
+成功写入后，只读接口返回：
+
+```json
+{ "site_pv": 2, "page_pv": 2, "site_uv": 1, "page_uv": 1 }
+```
+
+`POST /v1/track` 不返回这四个数：
+
+```json
+{ "error": "not_counted", "message": "POST /v1/track 不会增加 PV/UV…" }
+```
+
+状态码 405。
+
+### 4.2 站点文件
+
+`sites.json`：
 
 ```json
 {
-  "dependencies": {
-    "@edgeone/pages-blob": "^0.0.14",
-    "ua-parser-js": "^1.0.37",
-    "zod": "^3.22.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0",
-    "edgeone": "^2.0.0"
-  }
+  "sites": [
+    { "id": "kestrel", "domain": ["kestrel.crzliang.cn"] },
+    { "id": "www", "domain": ["www.crzliang.cn"] },
+    { "id": "blog", "domain": ["blog.crzliang.cn"] }
+  ]
 }
 ```
 
-## 4. 数据模型设计
+`id` 为 `[A-Za-z0-9_]{2,64}`，读入时转为小写。`domain` 每项是裸主机名，最多 32 个；空数组合法，但该站点不会被任何 Host 命中。重复 id、通配符或带端口的主机名会使加载失败。
 
-### 4.1 事件数据结构（追踪脚本上报）
+### 4.3 KV 键
 
-```typescript
-interface TrackEvent {
-  siteId: string;          // 网站唯一标识
-  eventType: 'pageview' | 'click' | 'custom';
-  url: string;             // 当前页面 URL
-  referrer: string;        // 来源页面
-  screenWidth: number;     // 屏幕宽度
-  timestamp: number;       // 事件发生时间戳
-  visitorId: string;       // 匿名访客 ID (本地生成)
-}
+键只能是数字、字母、下划线，所以页面路径先做 SHA-256 十六进制再写入。`put` 没有 TTL，也没有原子自增；同节点写完立刻可读，其他节点最长约 60 秒看到旧值。并发下少计可以接受。
+
+| 用途 | Key | Value |
+| :--- | :--- | :--- |
+| 站点 PV | `spv_{siteId}` | 十进制字符串 |
+| 站点 UV | `suv_{siteId}` | 十进制字符串 |
+| 页面 PV | `ppv_{siteId}_{pathHash}` | 十进制字符串 |
+| 页面 UV | `puv_{siteId}_{pathHash}` | 十进制字符串 |
+| 站点访客已见 | `seen_{siteId}_{visitorId}` | `"1"` |
+| 页面访客已见 | `seen_{siteId}_{pathHash}_{visitorId}` | `"1"` |
+
+`visitorId` 来自 cookie `kestrel_vid`：去掉连字符后只能是 `[A-Za-z0-9_]{8,64}`。站点名单不进 KV。
+
+UV 去重键会随访客增长，每个键只存一个字符。不把访客列表塞进同一个 JSON。
+
+## 5. API
+
+基础路径：`/v1/`
+
+| 方法 | 路径 | 说明 |
+| :--- | :--- | :--- |
+| `GET` | `/track` | 公开，只读。Query：`siteId`，可选 `path`。四个整数；省略 `path` 时页面计数为 0。不计 PV |
+| `POST` | `/track` | 公开，但不计数。405，`not_counted`。正文被忽略 |
+
+`GET /track` 在站点不存在于 `sites.json` 时返回 `unknown_site`（404），`siteId` 缺失为 `siteId_required`（400），格式不对为 `invalid_payload`（400）。查询参数里的 `url` 不会被当成页面地址。空名单站点可以读取，数字保持 0，直到有文档请求命中它的主机名——空名单永远不会命中。
+
+## 6. 目录
+
+```text
+kestrel/
+├── middleware.ts
+├── sites.json
+├── edge-functions/v1/track.ts   # 只读 GET；POST 明确不计数
+├── edge-functions/lib/counter.ts
+├── edge-functions/lib/sites.ts  # 启动时解析 sites.json
+├── edge-functions/lib/storage.ts
+├── tracking-script/src/index.ts
+└── docs/
 ```
 
-### 4.2 KV 存储 Key 设计
+## 7. 开发与部署
 
-| 用途 | Key 格式 | Value 示例 | TTL |
-| :--- | :--- | :--- | :--- |
-| 今日 PV | `pv:day:{siteId}:{YYYYMMDD}` | `"12345"` | 7 天 |
-| 在线人数 | `online:{siteId}` | `"67"` | 5 分钟 |
-| 站点配置 | `config:{siteId}` | `{"name":"博客","domain":"example.com"}` | 永久 |
-| 防刷计数 | `rate:{siteId}:{ip}:{minute}` | `"23"` | 2 分钟 |
-
-### 4.3 Blob 存储目录结构
-
-```
-/sites/{siteId}/
-  /raw/
-    /2026/
-      /07/
-        16.ndjson   # 按天存储原始事件
-        15.ndjson
-  /aggregates/
-    /daily/
-      2026-07-16.json  # 日聚合数据 (PV, UV, 来源分布等)
-    /hourly/
-      2026-07-16-14.json
-```
-
-## 5. API 接口设计
-
-所有接口均通过 Edge Functions 实现，基础路径：`https://api.yourdomain.com/v1/`
-
-| 方法 | 路径 | 描述 | 参数 |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/track` | **数据采集**（追踪脚本调用） | Body: `TrackEvent` |
-| `GET` | `/stats/realtime` | **实时概览** | Query: `siteId` |
-| `GET` | `/stats/trend` | **趋势数据** | Query: `siteId`, `days`, `granularity` |
-| `GET` | `/stats/sources` | **来源分析** | Query: `siteId`, `startDate`, `endDate` |
-| `GET` | `/stats/pages` | **页面排行** | Query: `siteId`, `limit` |
-| `GET` | `/stats/devices` | **设备分析** | Query: `siteId`, `days` |
-| `GET` | `/stats/geo` | **地域地图** | Query: `siteId` |
-| `GET` | `/stats/behavior` | **用户行为明细** | Query: `siteId`, `limit` |
-| `GET` | `/sites` | **站点列表** | — |
-| `POST` | `/sites` | **创建站点** | Body: `{ id?, name, domain? }` |
-| `GET` | `/sites/:id` | **站点详情** | — |
-| `PATCH` | `/sites/:id` | **更新站点** | Body: `{ name?, domain? }` |
-| `DELETE` | `/sites/:id` | **删除站点** | — |
-
-## 6. 项目目录结构
-
-```
-kestrel-analytics/
-├── frontend/                     # 仪表盘前端项目
-│   ├── src/
-│   │   ├── pages/               # 页面组件 (Dashboard, Trends, Pages...)
-│   │   ├── components/          # 通用 UI 组件
-│   │   ├── hooks/               # 自定义 React Hooks
-│   │   ├── services/            # API 调用封装
-│   │   └── utils/               # 工具函数
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── edge-functions/              # EdgeOne 边缘函数 (后端 API)
-│   ├── v1/
-│   │   ├── track/              # POST /v1/track
-│   │   ├── stats/
-│   │   │   ├── realtime.ts     # GET /v1/stats/realtime
-│   │   │   ├── trend.ts        # GET /v1/stats/trend
-│   │   │   └── ...             # 其他统计接口
-│   │   └── _middleware.ts      # 全局中间件 (CORS, 鉴权等)
-│   ├── lib/
-│   │   ├── storage.ts          # KV / Blob 操作封装
-│   │   ├── parser.ts           # User-Agent 解析
-│   │   └── validator.ts        # Zod 校验规则
-│   └── package.json
-│
-├── tracking-script/             # 前端追踪脚本 (独立打包)
-│   ├── src/
-│   │   └── index.ts            # 核心埋点逻辑
-│   ├── package.json
-│   └── rollup.config.js
-│
-├── docker-compose.yml           # 本地开发依赖 (Redis 模拟等)
-└── README.md
-```
-
-## 7. 开发与部署流程
-
-### 7.1 前置准备
-
-1. 注册腾讯云账号，开通 **EdgeOne** 服务。
-2. 在 EdgeOne 控制台创建：
-   - **Pages 项目**：用于托管前端仪表盘。
-   - **KV 存储空间**：命名如 `kestrel-kv`。
-   - **Blob 存储桶**：命名如 `kestrel-blob`。
-3. 安装 EdgeOne CLI：`npm install -g edgeone`
-
-### 7.2 本地开发
+本地：
 
 ```bash
-# 克隆项目
-git clone https://github.com/yourname/kestrel-analytics.git
-cd kestrel-analytics
-
-# 安装依赖 (根目录)
 npm install
-
-# 启动本地开发环境 (模拟 EdgeOne 环境)
-edgeone pages dev
-# 访问 http://localhost:8088 查看仪表盘
+npm run build -w @kestrel/shared
+npm run build:tracker
+npm run dev
 ```
 
-### 7.3 部署到生产
+Mock API http://127.0.0.1:8088 。它和边缘共用 `sites.json`，对非 `/v1` 的 HTML 文档请求按 Host 计数。
 
-```bash
-# 部署前端页面和边缘函数
-edgeone pages deploy
+生产在 EdgeOne Pages 绑定 KV 命名空间 `kestrel_kv`（变量名相同）。构建命令 `npm run build`，输出目录 `tracking-script/dist`（`index.html` 与 `kestrel.js`）。根目录 `middleware.ts` 随项目部署，默认匹配全部路由；`/` 的 HTML 在 Host 命中时照常计数。未绑定 KV 时函数使用进程内 Map，数据不持久。
 
-# 部署追踪脚本 (CDN)
-edgeone assets deploy ./tracking-script/dist
-```
+## 8. 实现约束
 
-## 8. 细化设计
+细节与键的读写见 [追踪与存储](./TRACKING-AND-STORAGE.md)。
 
-- [追踪脚本防缓存 & KV/Blob 读写示例](./TRACKING-AND-STORAGE.md)
-
-### 已确认的实现约束（来自细化设计）
-
-- KV Runtime `put` **无 TTL**：在线人数 / 防刷用软过期（value 内带 `exp`）。
-- KV Key **仅允许**数字、字母、下划线：原 `pv:day:...` 改为 `pv_day_...`。
-- Blob **无 append**：原始事件按「每请求一个 shard」写入，禁止读改写同一天大文件。
-- 追踪脚本防缓存：MVP 用 `?v=` + 缓存键含版本；后续升级不可变路径 + 稳定入口。
-
-## 9. 下一步计划
-
-- [ ] 搭建前端仪表盘基础布局
-- [ ] 实现 `/track` 接口及数据写入逻辑
-- [ ] 实现追踪脚本 SDK 并完成测试
-- [ ] 开发实时仪表盘数据展示
-- [ ] 开发趋势图、来源、页面等分析模块
+- KV `put` 无 TTL、无原子自增。计数是读改写，允许大约数。
+- 键字符集只有 `[A-Za-z0-9_]`。站点 ID 不能带连字符；页面路径必须哈希；cookie 里的连字符会去掉。
+- 不写 Blob，不保存原始访问日志。
+- 脚本缓存：嵌入地址带 `?v=`，并让缓存键包含该参数。
+- 边缘函数文件路由不能代替页面拦截。计数只存在于根 middleware 这条路径上。

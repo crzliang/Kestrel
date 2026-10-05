@@ -1,17 +1,12 @@
-type TrackEventType = 'pageview' | 'click' | 'custom';
-
-type TrackPayload = {
-  siteId: string;
-  eventType: TrackEventType;
-  url: string;
-  referrer: string;
-  screenWidth: number;
-  timestamp: number;
-  visitorId: string;
+type VisitCounts = {
+  site_pv: number;
+  page_pv: number;
+  site_uv: number;
+  page_uv: number;
 };
 
-const STORAGE_KEY = '_kst_vid';
 const VERSION = __KESTREL_VERSION__;
+const COUNT_KEYS = ['site_pv', 'page_pv', 'site_uv', 'page_uv'] as const;
 
 function readConfig(): { siteId: string; endpoint: string } {
   const el = document.currentScript as HTMLScriptElement | null;
@@ -26,84 +21,47 @@ function readConfig(): { siteId: string; endpoint: string } {
   return { siteId, endpoint };
 }
 
-function visitorId(): string {
-  try {
-    const existing = localStorage.getItem(STORAGE_KEY);
-    if (existing && existing.length >= 8) return existing;
-    const id =
-      (crypto.randomUUID && crypto.randomUUID().replace(/-/g, '')) ||
-      `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(STORAGE_KEY, id);
-    return id;
-  } catch {
-    return `anon_${Date.now().toString(36)}`;
+function paint(counts: VisitCounts): void {
+  for (const key of COUNT_KEYS) {
+    const value = document.getElementById(`kestrel_value_${key}`);
+    if (value) value.textContent = String(counts[key] ?? 0);
+    const box = document.getElementById(`kestrel_container_${key}`);
+    if (box) box.style.display = 'inline';
   }
 }
 
-function send(endpoint: string, payload: TrackPayload): void {
-  const body = JSON.stringify(payload);
-  if (navigator.sendBeacon) {
-    const ok = navigator.sendBeacon(
-      endpoint,
-      new Blob([body], { type: 'application/json' }),
-    );
-    if (ok) return;
-  }
-  void fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    },
-    body,
-    keepalive: true,
+function countsUrl(endpoint: string, siteId: string): string {
+  const url = new URL(endpoint, location.href);
+  url.searchParams.set('siteId', siteId);
+  url.searchParams.set('path', location.pathname + location.search);
+  return url.toString();
+}
+
+/** Read the four integers. This request must not be treated as a page view. */
+function show(siteId: string, endpoint: string): void {
+  if (!siteId) return;
+  void fetch(countsUrl(endpoint, siteId), {
+    method: 'GET',
+    headers: { 'Cache-Control': 'no-store' },
+    cache: 'no-store',
     mode: 'cors',
     credentials: 'omit',
-  });
-}
-
-function track(
-  siteId: string,
-  endpoint: string,
-  eventType: TrackEventType,
-  extraUrl?: string,
-): void {
-  if (!siteId) return;
-  send(endpoint, {
-    siteId,
-    eventType,
-    url: extraUrl || location.href,
-    referrer: document.referrer || '',
-    screenWidth: screen.width || 0,
-    timestamp: Date.now(),
-    visitorId: visitorId(),
-  });
+  })
+    .then(async (res) => {
+      if (!res.ok) return;
+      paint((await res.json()) as VisitCounts);
+    })
+    .catch(() => undefined);
 }
 
 function boot(): void {
   const { siteId, endpoint } = readConfig();
   if (!siteId) return;
-
-  track(siteId, endpoint, 'pageview');
-
-  // SPA: hook history API lightly
-  const wrap = (fn: typeof history.pushState) =>
-    function (this: History, ...args: Parameters<typeof history.pushState>) {
-      const ret = fn.apply(this, args);
-      track(siteId, endpoint, 'pageview');
-      return ret;
-    };
-  history.pushState = wrap(history.pushState);
-  history.replaceState = wrap(history.replaceState);
-  addEventListener('popstate', () => track(siteId, endpoint, 'pageview'));
-
+  show(siteId, endpoint);
   (window as Window & {
-    kestrel?: {
-      track: (type: TrackEventType, url?: string) => void;
-      version: string;
-    };
+    kestrel?: { track: () => void; version: string };
   }).kestrel = {
-    track: (type, url) => track(siteId, endpoint, type, url),
+    track: () => show(siteId, endpoint),
     version: VERSION,
   };
 }

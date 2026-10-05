@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { homepageSiteId, renderHomepage } from './render-home.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -25,6 +26,13 @@ const buildOptions = {
 
 mkdirSync(join(root, 'dist'), { recursive: true });
 
+function writeHomepage() {
+  const repoRoot = join(root, '..');
+  const html = renderHomepage(repoRoot, version);
+  writeFileSync(join(root, 'dist', 'index.html'), html);
+  console.log(`index.html  site=${homepageSiteId(repoRoot) || '(none)'}`);
+}
+
 function reportSize() {
   const raw = readFileSync(outfile);
   const gzip = gzipSync(raw);
@@ -35,6 +43,8 @@ function reportSize() {
     console.warn('Warning: gzip size exceeds 5KB budget');
   }
 }
+
+writeHomepage();
 
 if (watch) {
   const ctx = await esbuild.context(buildOptions);
