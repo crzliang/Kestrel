@@ -3,11 +3,10 @@
 <p align="center">轻量、白名单、隐私优先的 EdgeOne 页面计数。</p>
 
 <p align="center">
-  <a href="https://edgeone.ai/pages/new?repository-url=https%3A%2F%2Fgithub.com%2Fcrzliang%2FKestrel"><img src="https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg" alt="使用 EdgeOne Pages 部署"></a>
+  <img src="https://img.shields.io/badge/EdgeOne-部署-0052D9?style=flat-square" alt="EdgeOne 部署">
   <a href="https://github.com/crzliang/Kestrel"><img src="https://img.shields.io/github/stars/crzliang/Kestrel?style=flat-square" alt="GitHub stars"></a>
   <img src="https://img.shields.io/github/forks/crzliang/Kestrel?style=flat-square" alt="GitHub forks">
   <img src="https://img.shields.io/github/last-commit/crzliang/Kestrel?style=flat-square" alt="Last commit">
-  <a href="https://edgeone.ai/document/173005746529800192"><img src="https://img.shields.io/badge/EdgeOne-部署按钮-0052D9?style=flat-square" alt="EdgeOne 部署按钮"></a>
 </p>
 
 <p align="center">
@@ -261,9 +260,6 @@ edgeone pages deploy
 
 `middleware.ts` 和 `edge-functions/` 由 EdgeOne 按源码部署，不在静态输出目录里。首页由 `edge-functions/index.ts` 输出，并带 `Cache-Control: private, no-store`。不要把 `index.html` 放进输出目录，否则静态 HTML 可能命中 CDN 缓存并跳过 middleware。发布后如果首页仍返回 `EO-Cache-Status: Cache Hit`，在控制台清一次该主机名的缓存。
 
-也可以使用官方部署按钮：
-
-[![使用 EdgeOne Pages 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?repository-url=https%3A%2F%2Fgithub.com%2Fcrzliang%2FKestrel)
 
 ---
 
@@ -292,7 +288,7 @@ Kestrel/
 | --- | --- |
 | [技术蓝图](./docs/TECHNICAL.md) | 架构与接口 |
 | [追踪与存储](./docs/TRACKING-AND-STORAGE.md) | 脚本缓存、KV 计数键 |
-| [EdgeOne 部署按钮](https://edgeone.ai/document/173005746529800192) | 官方部署按钮说明 |
+| [EdgeOne 部署](https://edgeone.ai/document/173005746529800192) | 官方部署按钮说明 |
 
 ---
 
