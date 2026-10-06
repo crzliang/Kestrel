@@ -159,7 +159,7 @@ npm run dev
 
 Mock API http://127.0.0.1:8088 。它和边缘共用 `sites.json`，对非 `/v1` 的 HTML 文档请求按 Host 计数。
 
-生产在 EdgeOne Pages 绑定 KV 命名空间 `kestrel_kv`（变量名相同）。构建命令 `npm run build`，输出目录 `tracking-script/dist`（`index.html` 与 `kestrel.js`）。根目录 `middleware.ts` 随项目部署，默认匹配全部路由；`/` 的 HTML 在 Host 命中时照常计数。未绑定 KV 时函数使用进程内 Map，数据不持久。
+生产在 EdgeOne Pages 绑定 KV 命名空间 `kestrel_kv`（变量名相同）。构建命令 `npm run build`，输出目录 `tracking-script/dist`（`index.html` 与 `kestrel.js`），写在根目录 `edgeone.json`。根目录 `middleware.ts` 随项目部署，默认匹配全部路由；`/` 的 HTML 在 Host 命中时照常计数。未绑定 KV 时函数使用进程内 Map，数据不持久。
 
 ## 8. 实现约束
 
