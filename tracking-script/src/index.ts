@@ -42,8 +42,6 @@ function show(siteId: string, endpoint: string): void {
   if (!siteId) return;
   void fetch(countsUrl(endpoint, siteId), {
     method: 'GET',
-    headers: { 'Cache-Control': 'no-store' },
-    cache: 'no-store',
     mode: 'cors',
     credentials: 'omit',
   })
