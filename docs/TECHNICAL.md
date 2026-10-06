@@ -15,7 +15,7 @@
 ### 产品范围
 
 1. **页面计数**：根目录 `middleware.ts` 在文档请求上记一次访问。静态 HTML 由 CDN 直接返回，进不了 middleware，所以首页由 `edge-functions/index.ts` 输出 HTML，并在返回前按同一规则记一次。middleware 看到 `x-kestrel-visit` 就不再记第二次。`/v1/track` 只读。
-2. **页面展示**：`GET /v1/track` 公开、只读，响应只有四个整数，绝不计数。
+2. **页面展示**：`GET /v1/track` 只读，响应只有四个整数，绝不计数。请求的 Origin 或 Referer 必须属于该站点在 `sites.json` 里的域名，否则返回 403 `forbidden_origin`。
 3. **站点名单**：`sites.json` 列出站点 id 和主机名白名单。没有站点管理接口。
 
 `POST /v1/track` 保留为明确失败：405，`error` 为 `not_counted`，不读请求体，不增加 PV/UV。不再提供趋势、来源、地理、设备、IP、最近事件或在线人数。也不提供登录、控制台或 `/v1/stats/counts`。
@@ -127,10 +127,10 @@ UV 去重键会随访客增长，每个键只存一个字符。不把访客列�
 
 | 方法 | 路径 | 说明 |
 | :--- | :--- | :--- |
-| `GET` | `/track` | 公开，只读。Query：`siteId`，可选 `path`。四个整数；省略 `path` 时页面计数为 0。不计 PV |
+| `GET` | `/track` | 只读；来源必须命中站点白名单。Query：`siteId`，可选 `path`。四个整数；省略 `path` 时页面计数为 0。不计 PV |
 | `POST` | `/track` | 公开，但不计数。405，`not_counted`。正文被忽略 |
 
-`GET /track` 在站点不存在于 `sites.json` 时返回 `unknown_site`（404），`siteId` 缺失为 `siteId_required`（400），格式不对为 `invalid_payload`（400）。查询参数里的 `url` 不会被当成页面地址。空名单站点可以读取，数字保持 0，直到有文档请求命中它的主机名——空名单永远不会命中。
+`GET /track` 在站点不存在于 `sites.json` 时返回 `unknown_site`（404），来源不属于该站点白名单时为 `forbidden_origin`（403），`siteId` 缺失为 `siteId_required`（400），格式不对为 `invalid_payload`（400）。查询参数里的 `url` 不会被当成页面地址。空名单站点可以读取，数字保持 0，直到有文档请求命中它的主机名——空名单永远不会命中。
 
 ## 6. 目录
 

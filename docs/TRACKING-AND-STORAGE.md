@@ -43,7 +43,7 @@ fetch(url, {
 });
 ```
 
-服务端响应带 `Cache-Control: no-store` 与 `CDN-Cache-Control: no-store`。`GET /v1/track` 只读，不计数。
+服务端响应带 `Cache-Control: no-store` 与 `CDN-Cache-Control: no-store`。`GET /v1/track` 只读，不计数；请求的 Origin 或 Referer 必须命中该站点的域名白名单。
 
 页面元素：
 
@@ -117,7 +117,7 @@ Mock API 对非 `/v1` 路径做了同样的 Host 判断，方便本地用 curl �
 
 ### 3.3 只读响应
 
-`GET /v1/track?siteId=&path=` 返回且只返回：
+`GET /v1/track?siteId=&path=` 在白名单来源下返回且只返回：
 
 ```json
 { "site_pv": 2, "page_pv": 2, "site_uv": 1, "page_uv": 1 }

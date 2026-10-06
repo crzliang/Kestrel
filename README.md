@@ -123,7 +123,7 @@ npm run dev:tracker # 监听并重建 kestrel.js，并写出 index.html
 | --- | --- |
 | `src` | 埋点脚本地址（建议带版本查询参数） |
 | `data-site` | 站点 ID，与 `sites.json` 的 `id` 一致 |
-| `data-endpoint` | 只读地址 `GET /v1/track`。脚本用它取四个整数，这次请求不计 PV |
+| `data-endpoint` | 只读地址 `GET /v1/track`。脚本用它取四个整数；请求来源必须属于该站点白名单，这次请求不计 PV |
 | `kestrel_value_*` | 脚本把四个累计数写入这些元素 |
 | `kestrel_container_*` | 拿到数字后改为 `inline`，可用来避免先闪出空标签 |
 

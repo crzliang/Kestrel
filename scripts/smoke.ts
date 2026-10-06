@@ -80,11 +80,17 @@ async function readPublic(
 ): Promise<{ status: number; body: Counts & { error?: string } }> {
   const params = new URLSearchParams({ siteId });
   if (path !== undefined) params.set('path', path);
+  const site = getSite(siteId);
+  const headers: Record<string, string> = {
+    Host: 'not-the-host.invalid',
+    Accept: 'text/html',
+  };
+  if (site?.domain[0]) headers.Origin = `https://${site.domain[0]}`;
   const res = await trackGet(
     ctx(
       new Request(
         `https://not-the-host.invalid/v1/track?${params.toString()}${extra ?? ''}`,
-        { headers: { Host: 'not-the-host.invalid', Accept: 'text/html' } },
+        { headers },
       ),
     ),
   );
@@ -358,6 +364,28 @@ async function testCounts(): Promise<void> {
       before.body.page_uv === 0,
     'configured site starts at zero',
   );
+
+  const foreignRead = await trackGet(
+    ctx(
+      new Request(`https://not-the-host.invalid/v1/track?siteId=${siteId}&path=%2Fhome`, {
+        headers: {
+          Host: 'not-the-host.invalid',
+          Accept: 'text/html',
+          Origin: 'https://not-listed.example',
+        },
+      }),
+    ),
+  );
+  assert(foreignRead.status === 403, 'foreign origin cannot read counts');
+
+  const bareRead = await trackGet(
+    ctx(
+      new Request(`https://not-the-host.invalid/v1/track?siteId=${siteId}&path=%2Fhome`, {
+        headers: { Host: 'not-the-host.invalid', Accept: 'text/html' },
+      }),
+    ),
+  );
+  assert(bareRead.status === 403, 'read without origin is rejected');
 
   const forged = await trackPost(
     ctx(

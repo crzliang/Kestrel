@@ -1,24 +1,14 @@
 import {
   createVisitorId,
-  isRequestHostAllowed,
   sanitizeVisitorId,
   visitorIdFromCookie,
   visitorSetCookie,
 } from '@kestrel/shared';
 import { pagePath, recordVisit, sha256Hex } from '../lib/counter';
 import { getSite } from '../lib/sites';
+import { isAllowedSiteOrigin } from '../lib/origin';
 import { corsHeaders, jsonResponse } from '../lib/http';
 import type { EventContext } from '../lib/types';
-
-function originHost(request: Request): string | null {
-  const value = request.headers.get('origin') || request.headers.get('referer');
-  if (!value) return null;
-  try {
-    return new URL(value).hostname;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Count one page view reported by a browser on an allowlisted site origin.
@@ -38,8 +28,7 @@ export async function onRequestPost({ request }: EventContext): Promise<Response
   const site = getSite(siteId);
   if (!site) return jsonResponse({ error: 'unknown_site' }, 404, corsHeaders);
 
-  const origin = originHost(request);
-  if (!origin || !isRequestHostAllowed(origin, site.domain)) {
+  if (!isAllowedSiteOrigin(request, site)) {
     return jsonResponse({ error: 'forbidden_origin' }, 403, corsHeaders);
   }
 

@@ -5,6 +5,7 @@ import {
 } from '@kestrel/shared';
 import { pagePath, readCounts, sha256Hex } from '../lib/counter';
 import { getSite } from '../lib/sites';
+import { isAllowedSiteOrigin } from '../lib/origin';
 import { corsHeaders, jsonResponse } from '../lib/http';
 import type { EventContext } from '../lib/types';
 
@@ -32,8 +33,12 @@ export async function onRequestGet({
     );
   }
 
-  if (!getSite(parsed.data.siteId)) {
+  const site = getSite(parsed.data.siteId);
+  if (!site) {
     return jsonResponse({ error: 'unknown_site' }, 404, corsHeaders);
+  }
+  if (!isAllowedSiteOrigin(request, site)) {
+    return jsonResponse({ error: 'forbidden_origin' }, 403, corsHeaders);
   }
 
   const path = (parsed.data.path ?? '').trim();
