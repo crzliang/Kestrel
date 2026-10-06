@@ -1,53 +1,130 @@
-# Kestrel
+<h1 align="center">Kestrel</h1>
 
-> 基于腾讯云 EdgeOne 的轻量页面计数。HTML 页面请求到达本边缘、且 Host 属于站点的固定域名时，累计站点 PV / UV 与当前页 PV / UV。
+<p align="center">轻量、白名单、隐私优先的 EdgeOne 页面计数。</p>
 
-边缘累计、KV 存储、自托管部署。追踪脚本体积小于 **5KB**（gzip），只负责把四个数填回页面，不收集 IP、来源或设备信息。
+<p align="center">
+  <a href="https://edgeone.ai/pages/new?repository-url=https%3A%2F%2Fgithub.com%2Fcrzliang%2FKestrel"><img src="https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg" alt="使用 EdgeOne Pages 部署"></a>
+  <a href="https://github.com/crzliang/Kestrel"><img src="https://img.shields.io/github/stars/crzliang/Kestrel?style=flat-square" alt="GitHub stars"></a>
+  <img src="https://img.shields.io/github/forks/crzliang/Kestrel?style=flat-square" alt="GitHub forks">
+  <img src="https://img.shields.io/github/last-commit/crzliang/Kestrel?style=flat-square" alt="Last commit">
+  <a href="https://edgeone.ai/document/173005746529800192"><img src="https://img.shields.io/badge/EdgeOne-部署按钮-0052D9?style=flat-square" alt="EdgeOne 部署按钮"></a>
+</p>
 
-**技术栈：** EdgeOne Pages · 根目录 Middleware · Edge Functions · KV
+<p align="center">
+  <img src="./docs/assets/preview.webp" alt="Kestrel 产品截图" width="860">
+</p>
+
+Kestrel 把站点 PV、页面 PV、站点 UV、页面 UV 四个整数放在腾讯云 EdgeOne 上累计。托管在 Kestrel EdgeOne 项目里的站点由根目录 middleware 在文档请求上计数；托管在其他 Pages 项目（Astro、Vite 等）的站点通过 `POST /v1/visit` 上报。页面脚本只读取四个整数，不采集原始事件、明文 IP、来源或设备信息。
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white&style=flat-square" alt="Node.js">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white&style=flat-square" alt="TypeScript">
+  <img src="https://img.shields.io/badge/EdgeOne-Pages-0052D9?style=flat-square" alt="EdgeOne Pages">
+  <img src="https://img.shields.io/badge/EdgeOne-KV-16A34A?style=flat-square" alt="EdgeOne KV">
+</p>
 
 ---
 
 ## 目录
 
-- [特性](#特性)
-- [仓库结构](#仓库结构)
+- [为什么是 Kestrel](#为什么是-kestrel)
+- [工作原理](#工作原理)
+- [接入方式](#接入方式)
+- [快速开始](#快速开始)
 - [站点配置](#站点配置)
-- [本地开发](#本地开发)
-- [嵌入埋点](#嵌入埋点)
+- [嵌入与上报](#嵌入与上报)
+- [API](#api)
 - [EdgeOne 部署](#edgeone-部署)
+- [项目结构](#项目结构)
 - [文档](#文档)
+- [贡献](#贡献)
+- [Contributors](#contributors)
 
 ---
 
-## 特性
+## 为什么是 Kestrel
 
-- **累计计数** — HTML 文档请求到达本边缘且 Host 命中固定域名时，累计站点 PV、页面 PV、站点 UV、页面 UV
-- **固定域名** — 只统计 `sites.json` 里列出的主机名；名单为空则不计数。调用接口或伪造 URL 不会加数字
-- **轻量** — 埋点脚本只读取四个数，并填进页面上的对应元素
-- **隐私优先** — 访客标识是本站 HttpOnly cookie，只存去重标记，不存明文 IP 或原始事件
-- **云原生** — 全程跑在 EdgeOne，无需自备应用服务器
+- **轻量** — `kestrel.js` gzip 后小于 5KB，只把四个整数填回页面。
+- **白名单** — 写入和读取都要求 `Origin` / `Referer` 命中 `sites.json` 中该站点的域名。
+- **隐私优先** — 只存四个计数和 UV 去重标记，不存原始事件、明文 IP、来源或设备。
+- **边缘原生** — 根目录 middleware、Edge Functions 和 KV 全部运行在 EdgeOne，无需自备应用服务器。
+- **多站点** — 一个 KV 命名空间服务多个站点，用 `site_id` 隔离计数。
 
 ---
 
-## 仓库结构
+## 工作原理
+
+```mermaid
+flowchart LR
+  U[浏览器] -->|HTML 文档请求| M[EdgeOne Root Middleware]
+  U -->|POST /v1/visit| V[/v1/visit/]
+  U -->|GET /v1/track| T[/v1/track/]
+  M --> KV[(kestrel_kv)]
+  V --> KV
+  T --> KV
+```
+
+- **middleware 计数**：适合直接接入 Kestrel EdgeOne 项目的站点。文档请求到达边缘且 Host 命中白名单时记一次。
+- **客户端上报**：适合托管在其他 Pages 项目的静态站点。页面通过 `POST /v1/visit` 上报，接口按 `Origin` 校验站点白名单。
+- **只读展示**：页面通过 `GET /v1/track` 读取四个整数，读取不会增加 PV。
+
+---
+
+## 接入方式
+
+| 场景 | 计数入口 | 读取接口 |
+| --- | --- | --- |
+| 站点由 Kestrel EdgeOne 项目托管 | 根目录 `middleware.ts` 自动计数 | `GET /v1/track` |
+| 站点托管在其他 Pages 项目 | 页面脚本调用 `POST /v1/visit` | `GET /v1/track` |
+
+两种方式都要求站点主机名写在 `sites.json` 的 `domain` 里。读取接口同样校验来源，白名单之外返回 `403 forbidden_origin`。
+
+---
+
+## 快速开始
+
+**要求：** Node.js ≥ 18
+
+```bash
+npm install
+npm run build -w @kestrel/shared
+npm run build:tracker
+npm run dev
+```
+
+本地 Mock 服务：
 
 ```text
-Kestrel/
-├── middleware.ts        # 页面请求到达边缘时按 Host 计数
-├── sites.json           # 站点 id 与主机名白名单（启动时读入）
-├── packages/shared/     # 共享类型与 Zod schema
-├── edge-functions/      # GET /v1/track（只读）和首页 HTML（打开 / 时计数）
-├── tracking-script/     # 埋点脚本 → dist/kestrel.js；构建时写出首页 HTML 模块
-├── scripts/             # 本地 mock / smoke
-└── docs/                # 技术文档
+http://127.0.0.1:8088/
+```
+
+它读取同一份 `sites.json`，对非 `/v1` 的 HTML 文档请求按 `Host` 计数，并从 `tracking-script/dist` 提供 `kestrel.js`。计数落在 `.kestrel/mock/counts.json`（已 gitignore）。
+
+验证一次计数：
+
+```bash
+curl -sD - -o /dev/null \
+  -H 'Host: kestrel.crzliang.cn' \
+  -H 'Accept: text/html' \
+  http://127.0.0.1:8088/
+
+curl -s 'http://127.0.0.1:8088/v1/track?siteId=kestrel&path=/'
+```
+
+其他命令：
+
+```bash
+npm test            # 计数规则、白名单、首页产物、脚本体积
+npm run typecheck   # 全仓类型检查
+npm run dev:tracker # 监听并重建 kestrel.js
+npm run test:ci     # 构建 + 类型检查 + 冒烟测试
 ```
 
 ---
 
 ## 站点配置
 
-站点和域名白名单写在仓库根目录的 `sites.json`，随代码提交。边缘函数和根目录 middleware 在加载时读入这份文件，不再提供站点管理接口。
+站点和域名白名单写在仓库根目录的 `sites.json`，随代码提交。
 
 ```json
 {
@@ -62,56 +139,24 @@ Kestrel/
 | 字段 | 含义 |
 | --- | --- |
 | `id` | 站点 ID。2–64 位，仅字母、数字、下划线，比较时忽略大小写 |
-| `domain` | 主机名白名单。不要写协议、路径、端口或 `*.example.com`。空数组表示该站点不计数 |
+| `domain` | 主机名白名单。不要写协议、路径、端口或 `*.example.com`；空数组表示该站点不计数 |
 
-比较 Host 时忽略大小写、去掉末尾的点，端口不参与比较。只做精确匹配。`localhost` 和 `127.0.0.1` 可以写进白名单。多个站点写了同一个主机名时，文件里先出现的那个计数。
+Host 比较忽略大小写、去掉末尾的点，端口不参与，只做精确匹配。多个站点写同一个主机名时，`sites.json` 里先出现的站点生效。
 
-改完 `sites.json` 后重新部署。文件不合法（重复 id、通配符、带端口的主机名）时，函数在启动时直接失败。
-
-当前文件是 `kestrel`、`www`、`blog` 三个站点，各自只列出自己的主机名。`kestrel` 写在最前，首页构建时用它作为 `data-site`。冒烟测试按这份名单检查 Host 命中；空名单和多主机名只在测试夹具里。
+改完 `sites.json` 后重新部署。文件不合法（重复 id、通配符、带端口的主机名）时，函数会在启动时失败。
 
 ---
 
-## 本地开发
+## 嵌入与上报
 
-**要求：** Node.js ≥ 18
-
-```bash
-npm install
-npm run build -w @kestrel/shared
-npm run build:tracker
-npm run dev
-```
-
-Mock 计数服务在 http://127.0.0.1:8088 。它读取同一份 `sites.json`。对非 `/v1` 的 HTML 文档请求按 `Host` 计数，用来代替本地边缘，并按首页模板返回页面。`/kestrel.js` 从 `tracking-script/dist` 提供，不计为访问。计数落在 `.kestrel/mock/counts.json`（已 gitignore）。
-
-浏览器打开 http://127.0.0.1:8088/ 即可看到首页上的四个数。白名单里没有 `127.0.0.1`，所以这次打开本身不会给站点加一；下面这条带 `Host: kestrel.crzliang.cn` 的请求才会计入 `kestrel`。页面脚本再用 `GET /v1/track` 把数字读出来。
-
-```bash
-curl -sD - -o /dev/null -H 'Host: kestrel.crzliang.cn' -H 'Accept: text/html' http://127.0.0.1:8088/
-curl -s 'http://127.0.0.1:8088/v1/track?siteId=kestrel&path=/'
-```
-
-### 其他命令
-
-```bash
-npm test            # 冒烟：计数规则、首页产物、脚本体积
-npm run typecheck   # 全仓类型检查
-npm run dev:tracker # 监听并重建 kestrel.js，并写出 index.html
-```
-
----
-
-## 嵌入埋点
-
-把下面这段放进要展示数字的 HTML。`data-site` 填 `sites.json` 里的站点 `id`。脚本地址是部署后的 `/kestrel.js`。
+### 只读展示
 
 ```html
 <script
   defer
-  src="https://your-domain.example/kestrel.js?v=0.1.0"
+  src="https://kestrel.crzliang.cn/kestrel.js?v=0.1.0"
   data-site="YOUR_SITE_ID"
-  data-endpoint="https://your-domain.example/v1/track"
+  data-endpoint="https://kestrel.crzliang.cn/v1/track"
 ></script>
 <span id="kestrel_container_site_pv" style="display:none">本站访问 <span id="kestrel_value_site_pv"></span></span>
 <span id="kestrel_container_site_uv" style="display:none">本站访客 <span id="kestrel_value_site_uv"></span></span>
@@ -119,23 +164,66 @@ npm run dev:tracker # 监听并重建 kestrel.js，并写出 index.html
 <span id="kestrel_container_page_uv" style="display:none">本页访客 <span id="kestrel_value_page_uv"></span></span>
 ```
 
-| 属性 / 元素 | 含义 |
-| --- | --- |
-| `src` | 埋点脚本地址（建议带版本查询参数） |
-| `data-site` | 站点 ID，与 `sites.json` 的 `id` 一致 |
-| `data-endpoint` | 只读地址 `GET /v1/track`。脚本用它取四个整数；请求来源必须属于该站点白名单，这次请求不计 PV |
-| `kestrel_value_*` | 脚本把四个累计数写入这些元素 |
-| `kestrel_container_*` | 拿到数字后改为 `inline`，可用来避免先闪出空标签 |
+`kestrel.js` 只调用 `GET /v1/track`，不会增加 PV/UV。
 
-计数发生在文档请求本身，不发生在脚本里。站点的固定域名必须接到**这个** EdgeOne 项目（自定义域名），浏览器打开该主机名下的 HTML 页面时，根目录 `middleware.ts` 用这次请求的 HTTP Host 对 `sites.json` 做精确匹配，命中才记一次。页面路径是这次请求的 pathname 加查询串。
+### 外部站点上报
 
-访客是主机名自己的 cookie `kestrel_vid`（HttpOnly，去掉连字符，只保留字母、数字、下划线）。没有 cookie 时边缘发一个新的。脚本不提交访客 ID。
+页面不经过 Kestrel middleware 时，需要额外调用一次写入接口。最小示例：
 
-`POST /v1/track` 仍在，但一律返回 405，`error` 为 `not_counted`，不会增加 PV/UV。请求体里的 `url`、`visitorId` 和 `Origin` 都不参与计数。
+```html
+<script>
+  (function () {
+    var url = new URL('https://kestrel.crzliang.cn/v1/visit');
+    var key = 'kestrel_visitor_id';
+    var id = localStorage.getItem(key);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, '');
+      localStorage.setItem(key, id);
+    }
+    url.searchParams.set('siteId', 'YOUR_SITE_ID');
+    url.searchParams.set('path', location.pathname + location.search);
+    url.searchParams.set('visitorId', id);
+    fetch(url, { method: 'POST', credentials: 'omit' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (counts) {
+        if (!counts) return;
+        ['site_pv', 'page_pv', 'site_uv', 'page_uv'].forEach(function (name) {
+          var value = document.getElementById('kestrel_value_' + name);
+          if (value) value.textContent = counts[name];
+          var box = document.getElementById('kestrel_container_' + name);
+          if (box) box.style.display = 'inline';
+        });
+      });
+  })();
+</script>
+```
 
-单页应用里的 `pushState` / `replaceState` 不会产生新的文档请求，因此不会单独计成一次页面访问。只嵌脚本、HTML 不经过本项目时，访问量也不会增加；脚本仍然可以读出当前的四个数。
+写入接口会校验 `Origin` / `Referer`。只有站点白名单里的域名可以上报。
 
-埋点代码只带站点 ID，不包含白名单。白名单只在 `sites.json`。
+---
+
+## API
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/v1/track` | 只读四个整数。来源必须命中站点白名单；不增加 PV |
+| `POST` | `/v1/visit` | 记录一次访问。来源必须命中站点白名单；返回四个整数和 `visitorId` |
+| `POST` | `/v1/track` | 明确不计数，返回 `405 not_counted` |
+
+`GET /v1/track` 返回：
+
+```json
+{ "site_pv": 2, "page_pv": 2, "site_uv": 1, "page_uv": 1 }
+```
+
+错误码：
+
+| 错误 | 状态码 | 含义 |
+| --- | --- | --- |
+| `siteId_required` | `400` | 缺少 `siteId` |
+| `invalid_payload` | `400` | 参数格式不合法 |
+| `forbidden_origin` | `403` | 来源不在该站点白名单里 |
+| `unknown_site` | `404` | `siteId` 不在 `sites.json` 中 |
 
 ---
 
@@ -143,33 +231,58 @@ npm run dev:tracker # 监听并重建 kestrel.js，并写出 index.html
 
 ### 存储
 
-| 存储 | 怎么配 |
-| --- | --- |
-| **KV** | 创建命名空间 **`kestrel_kv`**，绑定到 Pages 项目时变量名也填 **`kestrel_kv`** |
+在 EdgeOne KV 创建命名空间，并绑定到 Pages 项目：
 
-计数只使用 KV。站点名单不进 KV。未绑定时函数会回落内存实现，仅便于联调，**数据不会持久化**。
+```text
+变量名称：kestrel_kv
+```
 
-### 发布
+站点名单 `sites.json` 不写入 KV。未绑定 KV 时函数会回落到进程内 Map，仅便于联调，数据不会持久化。
 
-仓库构建产出首页和埋点脚本。根目录 `edgeone.json` 会覆盖控制台里的安装命令、构建命令和输出目录；用 Git 导入时以这份文件为准。Pages「构建设置」与该文件一致：
+### 构建设置
+
+`edgeone.json` 会覆盖控制台里的构建配置；用 Git 导入时以仓库文件为准。
 
 | 项 | 填写 |
 | --- | --- |
-| 框架预设 | Other |
+| 框架预设 | `Other` |
 | 根目录 | `./` |
 | 输出目录 | `tracking-script/dist` |
 | 构建命令 | `npm run build` |
 | 安装命令 | `npm install` |
 
-或用 CLI：
+### 发布
 
 ```bash
-npm run build                 # 产物在 tracking-script/dist/：kestrel.js；首页 HTML 写入 edge-functions
-npm i -g edgeone              # 如未安装 CLI
-edgeone pages deploy          # 在仓库根目录执行
+npm run build
+npm i -g edgeone
+edgeone pages deploy
 ```
 
-`middleware.ts` 和 `edge-functions/` 由 EdgeOne 按源码部署，不在静态输出目录里。`/` 由 `edge-functions/index.ts` 返回首页 HTML，并在返回前按 Host 记一次；响应带 `Cache-Control: private, no-store`。middleware 若再看到这次响应上的 `x-kestrel-visit`，不会记第二次。不要把 `index.html` 放进输出目录：EdgeOne 会把这份静态 HTML 放进 CDN，缓存命中和回源取文件都不会执行 middleware，刷新页面时四个数不变。`kestrel.js` 仍然是静态文件，不计。首页上的站点 id 是构建时 `sites.json` 里第一个写了主机名的站点。发布后若 `/` 的响应头仍是 `EO-Cache-Status: Cache Hit`，在控制台清掉该主机名的缓存。未绑定 KV `kestrel_kv` 时，首页函数写下的数和 `GET /v1/track` 不在同一份内存里，页面上仍会是 0。
+`middleware.ts` 和 `edge-functions/` 由 EdgeOne 按源码部署，不在静态输出目录里。首页由 `edge-functions/index.ts` 输出，并带 `Cache-Control: private, no-store`。不要把 `index.html` 放进输出目录，否则静态 HTML 可能命中 CDN 缓存并跳过 middleware。发布后如果首页仍返回 `EO-Cache-Status: Cache Hit`，在控制台清一次该主机名的缓存。
+
+也可以使用官方部署按钮：
+
+[![使用 EdgeOne Pages 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?repository-url=https%3A%2F%2Fgithub.com%2Fcrzliang%2FKestrel)
+
+---
+
+## 项目结构
+
+```text
+Kestrel/
+├── middleware.ts                 # 文档请求按 Host 计数
+├── sites.json                    # 站点 id 与域名白名单
+├── edge-functions/
+│   ├── index.ts                  # 首页 HTML
+│   ├── v1/track.ts               # 只读计数
+│   ├── v1/visit.ts               # 客户端上报计数
+│   └── lib/                      # 计数、KV、来源校验、访客标识
+├── packages/shared/              # 共享类型与校验
+├── tracking-script/              # 埋点脚本 → dist/kestrel.js
+├── scripts/                      # 本地 Mock 与冒烟测试
+└── docs/                         # 技术文档
+```
 
 ---
 
@@ -178,4 +291,23 @@ edgeone pages deploy          # 在仓库根目录执行
 | 文档 | 内容 |
 | --- | --- |
 | [技术蓝图](./docs/TECHNICAL.md) | 架构与接口 |
-| [追踪与存储](./docs/TRACKING-AND-STORAGE.md) | 脚本防缓存、KV 计数键 |
+| [追踪与存储](./docs/TRACKING-AND-STORAGE.md) | 脚本缓存、KV 计数键 |
+| [EdgeOne 部署按钮](https://edgeone.ai/document/173005746529800192) | 官方部署按钮说明 |
+
+---
+
+## 贡献
+
+欢迎提交 Issue 或 Pull Request。提交前请先运行：
+
+```bash
+npm run test:ci
+```
+
+## Contributors
+
+<a href="https://github.com/crzliang/Kestrel/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=crzliang/Kestrel" alt="Contributors">
+</a>
+
+<p align="center"><a href="#kestrel">回到顶部</a></p>
