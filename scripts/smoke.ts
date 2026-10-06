@@ -27,6 +27,9 @@ import {
   listSites,
   matchSiteByHost,
 } from '../edge-functions/lib/sites';
+import { pagePath } from '../edge-functions/lib/counter';
+import { onRequestGet as homeGet } from '../edge-functions/index';
+import { HOME_HTML } from '../edge-functions/generated/home-html';
 import type { EventContext } from '../edge-functions/lib/types';
 
 process.env.KESTREL_STORAGE = 'memory';
@@ -98,7 +101,14 @@ async function navigate(options: {
   method?: string;
   status?: number;
   contentType?: string;
-}): Promise<{ status: number; setCookie: string | null; text: string }> {
+  cacheControl?: string;
+}): Promise<{
+  status: number;
+  setCookie: string | null;
+  text: string;
+  cacheControl: string | null;
+  cdnCacheControl: string | null;
+}> {
   const headers = new Headers();
   headers.set('Host', options.host);
   headers.set('Accept', options.accept ?? 'text/html');
@@ -115,6 +125,9 @@ async function navigate(options: {
         status: options.status ?? 200,
         headers: {
           'Content-Type': options.contentType ?? 'text/html; charset=utf-8',
+          ...(options.cacheControl
+            ? { 'Cache-Control': options.cacheControl }
+            : {}),
         },
       }),
   });
@@ -122,6 +135,8 @@ async function navigate(options: {
     status: response.status,
     setCookie: response.headers.get('set-cookie'),
     text: await response.text(),
+    cacheControl: response.headers.get('cache-control'),
+    cdnCacheControl: response.headers.get('cdn-cache-control'),
   };
 }
 
@@ -625,10 +640,12 @@ async function testAllowlist(): Promise<void> {
 
 async function testHomepage(): Promise<void> {
   console.log('\n[homepage]');
-  const file = join(root, 'tracking-script/dist/index.html');
-  assert(existsSync(file), 'index.html is in the deploy directory');
-  if (!existsSync(file)) return;
-  const html = readFileSync(file, 'utf8');
+  assert(
+    !existsSync(join(root, 'tracking-script/dist/index.html')),
+    'homepage is not a static file in the deploy directory',
+  );
+  assert(pagePath('/') === '/', 'homepage document path is /');
+  const html = HOME_HTML;
   const site = sitesFromFile().find((item) => item.domain.length > 0);
   assert(site?.id === 'kestrel', 'homepage site is kestrel');
   for (const key of ['site_pv', 'page_pv', 'site_uv', 'page_uv'] as const) {
@@ -650,19 +667,132 @@ async function testHomepage(): Promise<void> {
   assert(!/登录|控制台|趋势/.test(html), 'homepage does not mention a console, login, or trends');
 
   const host = site?.domain[0] ?? '';
-  const home = await navigate({ host, path: '/' });
+  const before = await readPublic(site?.id ?? '', '/');
+  const home = await navigate({
+    host,
+    path: '/',
+    cacheControl: 'public, max-age=0, must-revalidate',
+  });
   assert(home.status === 200, 'middleware returns the homepage response');
   assert(home.text === 'page', 'middleware does not replace the homepage body');
   assert(home.setCookie !== null, 'allowlisted request for / is counted');
-  const indexFile = await navigate({
-    host,
-    path: '/index.html',
-    cookie: `kestrel_vid=${vidFromSetCookie(home.setCookie)}`,
-  });
-  assert(indexFile.status === 200, 'middleware does not block /index.html');
-  assert(indexFile.text === 'page', 'middleware passes the index.html body through');
+  assert(
+    home.cacheControl === 'private, no-store',
+    'counted homepage is not a public CDN response',
+  );
+  assert(
+    home.cdnCacheControl === 'no-store',
+    'counted homepage sets CDN-Cache-Control no-store',
+  );
   const counted = await readPublic(site?.id ?? '', '/');
-  assert(counted.body.site_pv >= 1 && counted.body.page_pv >= 1, 'homepage path is stored');
+  assert(
+    counted.body.site_pv === before.body.site_pv + 1 &&
+      counted.body.page_pv === before.body.page_pv + 1,
+    'GET /v1/track path=/ sees the homepage write',
+  );
+  assert(
+    counted.body.site_uv === before.body.site_uv + 1 &&
+      counted.body.page_uv === before.body.page_uv + 1,
+    'first homepage visitor increments UV',
+  );
+  const again = await navigate({
+    host,
+    path: '/',
+    cookie: `kestrel_vid=${vidFromSetCookie(home.setCookie)}`,
+    cacheControl: 'public, max-age=0, must-revalidate',
+  });
+  assert(again.setCookie === null, 'same homepage visitor is not reissued a cookie');
+  assert(again.cacheControl === 'private, no-store', 'repeat homepage view stays uncached');
+  const repeated = await readPublic(site?.id ?? '', '/');
+  assert(repeated.body.site_pv === counted.body.site_pv + 1, 'refresh increments site pv');
+  assert(repeated.body.page_pv === counted.body.page_pv + 1, 'refresh increments page pv');
+  assert(repeated.body.site_uv === counted.body.site_uv, 'same visitor does not increment site uv');
+  assert(repeated.body.page_uv === counted.body.page_uv, 'same visitor does not increment page uv');
+
+  const noDest = await navigate({ host, path: '/', accept: 'text/html' });
+  const afterNoDest = await readPublic(site?.id ?? '', '/');
+  assert(
+    noDest.setCookie !== null && afterNoDest.body.site_pv === repeated.body.site_pv + 1,
+    'homepage without Sec-Fetch-Dest still counts when Accept asks for HTML',
+  );
+
+  const bare = await homeGet(ctx(new Request('https://kestrel.crzliang.cn/')));
+  assert(bare.status === 200, 'homepage function returns 200');
+  assert(
+    (bare.headers.get('content-type') || '').includes('text/html'),
+    'homepage function returns HTML',
+  );
+  assert(
+    bare.headers.get('cache-control') === 'private, no-store',
+    'homepage function is uncacheable',
+  );
+  assert((await bare.text()) === HOME_HTML, 'homepage function serves the built document');
+  const afterBare = await readPublic(site?.id ?? '', '/');
+  assert(
+    afterBare.body.site_pv === afterNoDest.body.site_pv &&
+      afterBare.body.page_pv === afterNoDest.body.page_pv,
+    'homepage function without a document Accept does not count',
+  );
+
+  const documentHeaders = {
+    Host: host,
+    Accept: 'text/html',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+  };
+  const opened = await homeGet(
+    ctx(new Request(`https://${host}/`, { headers: documentHeaders })),
+  );
+  assert(
+    opened.headers.get('set-cookie')?.includes('kestrel_vid='),
+    'homepage function sets a visitor cookie',
+  );
+  assert(opened.headers.get('x-kestrel-visit') === '1', 'homepage function marks the visit');
+  const afterOpen = await readPublic(site?.id ?? '', '/');
+  assert(
+    afterOpen.body.site_pv === afterBare.body.site_pv + 1 &&
+      afterOpen.body.page_pv === afterBare.body.page_pv + 1 &&
+      afterOpen.body.site_uv === afterBare.body.site_uv + 1,
+    'opening / increments site pv and the script path /',
+  );
+  const vid = vidFromSetCookie(opened.headers.get('set-cookie'));
+  const refreshed = await homeGet(
+    ctx(
+      new Request(`https://${host}/`, {
+        headers: { ...documentHeaders, Cookie: `kestrel_vid=${vid}` },
+      }),
+    ),
+  );
+  assert(refreshed.headers.get('set-cookie') === null, 'refresh does not reissue the visitor cookie');
+  const afterRefresh = await readPublic(site?.id ?? '', '/');
+  assert(
+    afterRefresh.body.site_pv === afterOpen.body.site_pv + 1 &&
+      afterRefresh.body.page_pv === afterOpen.body.page_pv + 1 &&
+      afterRefresh.body.site_uv === afterOpen.body.site_uv &&
+      afterRefresh.body.page_uv === afterOpen.body.page_uv,
+    'refresh increments pv and not uv',
+  );
+
+  const shared = new Request(`https://${host}/`, { headers: documentHeaders });
+  const viaMiddleware = await middleware({
+    request: shared,
+    next: () => homeGet(ctx(shared)),
+  });
+  assert(viaMiddleware.status === 200, 'middleware passes the homepage function through');
+  assert(
+    viaMiddleware.headers.get('set-cookie')?.includes('kestrel_vid='),
+    'the combined homepage response still sets the visitor cookie',
+  );
+  const afterFunction = await readPublic(site?.id ?? '', '/');
+  assert(
+    afterFunction.body.site_pv === afterRefresh.body.site_pv + 1 &&
+      afterFunction.body.page_pv === afterRefresh.body.page_pv + 1,
+    'middleware does not count the homepage function a second time',
+  );
+  assert(
+    (await viaMiddleware.text()).includes('data-endpoint="/v1/track"'),
+    'counted homepage still contains the read-only script',
+  );
 }
 
 async function testTrackerBudget(): Promise<void> {

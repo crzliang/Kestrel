@@ -1,16 +1,14 @@
+import { isDocumentNavigation } from '@kestrel/shared';
 import {
-  isDocumentNavigation,
-  visitorIdFromCookie,
-  createVisitorId,
-  visitorSetCookie,
-} from '@kestrel/shared';
-import { pagePath, recordVisit, sha256Hex } from './edge-functions/lib/counter';
-import { findSiteByHost } from './edge-functions/lib/sites';
+  recordDocumentVisit,
+  VISIT_HEADER,
+} from './edge-functions/lib/document-visit';
 
 /**
- * EdgeOne project middleware. It runs before static files and /v1 functions.
- * File routes under edge-functions/ do not see HTML: static assets win those conflicts.
+ * EdgeOne project middleware. It runs before /v1 functions and the homepage function.
  * A visit is recorded only for an HTML document whose Host is on a site allowlist.
+ * Counted HTML is marked uncacheable: a CDN hit never enters this function, so the
+ * four numbers would stay put.
  */
 type MiddlewareContext = {
   request: Request;
@@ -19,10 +17,6 @@ type MiddlewareContext = {
   }) => Response | Promise<Response>;
 };
 
-function arrivalHost(request: Request): string {
-  return request.headers.get('host') || new URL(request.url).host;
-}
-
 function isHtmlDocument(response: Response): boolean {
   if (response.status === 304) return true;
   if (response.status !== 200) return false;
@@ -30,9 +24,23 @@ function isHtmlDocument(response: Response): boolean {
   return type.includes('text/html');
 }
 
+/** Keep the document off the CDN so the next refresh reaches this middleware again. */
+function withCountedHeaders(response: Response, setCookie?: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', 'private, no-store');
+  headers.set('CDN-Cache-Control', 'no-store');
+  if (setCookie) headers.append('Set-Cookie', setCookie);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export async function middleware(context: MiddlewareContext): Promise<Response> {
   const { request } = context;
   const response = await Promise.resolve(context.next());
+  if (response.headers.get(VISIT_HEADER) === '1') return response;
   const url = new URL(request.url);
   if (
     !isDocumentNavigation({
@@ -48,27 +56,11 @@ export async function middleware(context: MiddlewareContext): Promise<Response> 
     return response;
   }
 
-  const site = findSiteByHost(arrivalHost(request));
-  if (!site) return response;
-
-  const existing = visitorIdFromCookie(request.headers.get('cookie'));
-  const visitorId = existing ?? createVisitorId();
-  const path = pagePath(`${url.pathname}${url.search}`);
-  await recordVisit(site.id, await sha256Hex(path), visitorId);
-  if (existing) return response;
-
-  const headers = new Headers(response.headers);
-  headers.append(
-    'Set-Cookie',
-    visitorSetCookie(visitorId, url.protocol === 'https:'),
-  );
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  const recorded = await recordDocumentVisit(request);
+  if (!recorded) return response;
+  return withCountedHeaders(response, recorded.setCookie ?? undefined);
 }
 
 export const config = {
-  matcher: ['/:path*'],
+  matcher: ['/', '/:path*'],
 };

@@ -64,7 +64,7 @@ fetch(url, {
 
 `edge-functions/v1/*` 只匹配 `/v1` 下的函数路由。EdgeOne 的规则是：函数路由和静态资源冲突时，请求优先走静态资源。因此页面 HTML 不会进入 `v1/track.ts`。
 
-项目根目录的 `middleware.ts`（导出 `middleware`）默认匹配全部路由，在页面加载前执行，能看到这次请求的 HTTP Host。计数写在这里：
+项目根目录的 `middleware.ts`（导出 `middleware`）匹配 `/` 和其余路由。静态 HTML 若被 CDN 缓存（响应头 `EO-Cache-Status`），请求不会进入 middleware，四个数保持不变。因此首页不是输出目录里的 `index.html`，而是 `edge-functions/index.ts` 返回的文档，并带 `Cache-Control: private, no-store` 与 `CDN-Cache-Control: no-store`。这个函数在返回前记下这一次访问；middleware 看到响应头 `x-kestrel-visit` 就不再记第二次：
 
 1. `next()` 拿到原本的页面响应。
 2. 不是 HTML 文档导航就原样返回。跳过静态资源、`kestrel.js`、`/v1/*`、预取、非 GET、重定向，以及 `Content-Type` 不是 `text/html` 的 200。

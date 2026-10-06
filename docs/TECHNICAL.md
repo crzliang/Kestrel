@@ -14,7 +14,7 @@
 
 ### 产品范围
 
-1. **页面计数**：根目录 `middleware.ts` 在文档请求上记一次访问。`edge-functions` 的文件路由拦截不到静态 HTML（与静态资源冲突时优先走静态文件），所以计数不放在 `/v1` 函数里。
+1. **页面计数**：根目录 `middleware.ts` 在文档请求上记一次访问。静态 HTML 由 CDN 直接返回，进不了 middleware，所以首页由 `edge-functions/index.ts` 输出 HTML，并在返回前按同一规则记一次。middleware 看到 `x-kestrel-visit` 就不再记第二次。`/v1/track` 只读。
 2. **页面展示**：`GET /v1/track` 公开、只读，响应只有四个整数，绝不计数。
 3. **站点名单**：`sites.json` 列出站点 id 和主机名白名单。没有站点管理接口。
 
@@ -138,6 +138,7 @@ UV 去重键会随访客增长，每个键只存一个字符。不把访客列�
 kestrel/
 ├── middleware.ts
 ├── sites.json
+├── edge-functions/index.ts      # 首页 HTML，并记下这一次文档访问
 ├── edge-functions/v1/track.ts   # 只读 GET；POST 明确不计数
 ├── edge-functions/lib/counter.ts
 ├── edge-functions/lib/sites.ts  # 启动时解析 sites.json
@@ -159,7 +160,7 @@ npm run dev
 
 Mock API http://127.0.0.1:8088 。它和边缘共用 `sites.json`，对非 `/v1` 的 HTML 文档请求按 Host 计数。
 
-生产在 EdgeOne Pages 绑定 KV 命名空间 `kestrel_kv`（变量名相同）。构建命令 `npm run build`，输出目录 `tracking-script/dist`（`index.html` 与 `kestrel.js`），写在根目录 `edgeone.json`。根目录 `middleware.ts` 随项目部署，默认匹配全部路由；`/` 的 HTML 在 Host 命中时照常计数。未绑定 KV 时函数使用进程内 Map，数据不持久。
+生产在 EdgeOne Pages 绑定 KV 命名空间 `kestrel_kv`（变量名相同）。构建命令 `npm run build`，输出目录 `tracking-script/dist`（只有 `kestrel.js`，没有 `index.html`），写在根目录 `edgeone.json`。`/` 的 HTML 来自边缘函数，禁止 CDN 缓存，并在返回前计数。未绑定 KV 时函数使用进程内 Map，首页写入和 `GET /v1/track` 可能不在同一份内存里，页面上读到的仍是 0。
 
 ## 8. 实现约束
 
@@ -169,4 +170,4 @@ Mock API http://127.0.0.1:8088 。它和边缘共用 `sites.json`，对非 `/v1`
 - 键字符集只有 `[A-Za-z0-9_]`。站点 ID 不能带连字符；页面路径必须哈希；cookie 里的连字符会去掉。
 - 不写 Blob，不保存原始访问日志。
 - 脚本缓存：嵌入地址带 `?v=`，并让缓存键包含该参数。
-- 边缘函数文件路由不能代替页面拦截。计数只存在于根 middleware 这条路径上。
+- 边缘函数文件路由不能代替页面拦截。其它 HTML 仍由根 middleware 计数。首页函数自己记下 `/`，避免静态 CDN 跳过 middleware。

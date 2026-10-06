@@ -37,8 +37,8 @@ Kestrel/
 ├── middleware.ts        # 页面请求到达边缘时按 Host 计数
 ├── sites.json           # 站点 id 与主机名白名单（启动时读入）
 ├── packages/shared/     # 共享类型与 Zod schema
-├── edge-functions/      # API：GET /v1/track（只读）
-├── tracking-script/     # 埋点脚本与首页 → dist/kestrel.js、dist/index.html
+├── edge-functions/      # GET /v1/track（只读）和首页 HTML（打开 / 时计数）
+├── tracking-script/     # 埋点脚本 → dist/kestrel.js；构建时写出首页 HTML 模块
 ├── scripts/             # 本地 mock / smoke
 └── docs/                # 技术文档
 ```
@@ -83,7 +83,7 @@ npm run build:tracker
 npm run dev
 ```
 
-Mock 计数服务在 http://127.0.0.1:8088 。它读取同一份 `sites.json`。对非 `/v1` 的 HTML 文档请求按 `Host` 计数，用来代替本地边缘，并返回首页（优先用 `tracking-script/dist/index.html`，还没构建时按同一模板现渲染）。`/kestrel.js` 从该目录提供，不计为访问。计数落在 `.kestrel/mock/counts.json`（已 gitignore）。
+Mock 计数服务在 http://127.0.0.1:8088 。它读取同一份 `sites.json`。对非 `/v1` 的 HTML 文档请求按 `Host` 计数，用来代替本地边缘，并按首页模板返回页面。`/kestrel.js` 从 `tracking-script/dist` 提供，不计为访问。计数落在 `.kestrel/mock/counts.json`（已 gitignore）。
 
 浏览器打开 http://127.0.0.1:8088/ 即可看到首页上的四个数。白名单里没有 `127.0.0.1`，所以这次打开本身不会给站点加一；下面这条带 `Host: kestrel.crzliang.cn` 的请求才会计入 `kestrel`。页面脚本再用 `GET /v1/track` 把数字读出来。
 
@@ -164,12 +164,12 @@ npm run dev:tracker # 监听并重建 kestrel.js，并写出 index.html
 或用 CLI：
 
 ```bash
-npm run build                 # 产物在 tracking-script/dist/：index.html 与 kestrel.js
+npm run build                 # 产物在 tracking-script/dist/：kestrel.js；首页 HTML 写入 edge-functions
 npm i -g edgeone              # 如未安装 CLI
 edgeone pages deploy          # 在仓库根目录执行
 ```
 
-`middleware.ts` 和 `edge-functions/` 由 EdgeOne 按源码部署，不在静态输出目录里。输出目录里的 `index.html` 作为 `/` 返回。它是 HTML 文档：Host 命中 `sites.json` 时按现有规则计数，根 middleware 不会把它拦下。`kestrel.js` 仍然不计。首页上的站点 id 是构建时 `sites.json` 里第一个写了主机名的站点。
+`middleware.ts` 和 `edge-functions/` 由 EdgeOne 按源码部署，不在静态输出目录里。`/` 由 `edge-functions/index.ts` 返回首页 HTML，并在返回前按 Host 记一次；响应带 `Cache-Control: private, no-store`。middleware 若再看到这次响应上的 `x-kestrel-visit`，不会记第二次。不要把 `index.html` 放进输出目录：EdgeOne 会把这份静态 HTML 放进 CDN，缓存命中和回源取文件都不会执行 middleware，刷新页面时四个数不变。`kestrel.js` 仍然是静态文件，不计。首页上的站点 id 是构建时 `sites.json` 里第一个写了主机名的站点。发布后若 `/` 的响应头仍是 `EO-Cache-Status: Cache Hit`，在控制台清掉该主机名的缓存。未绑定 KV `kestrel_kv` 时，首页函数写下的数和 `GET /v1/track` 不在同一份内存里，页面上仍会是 0。
 
 ---
 

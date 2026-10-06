@@ -141,28 +141,7 @@ function readVisit(siteId, path) {
   };
 }
 
-function hasVisibleTitle(html) {
-  const match = /<h1\b([^>]*)>\s*Kestrel\s*<\/h1>/i.exec(html);
-  if (!match || /display\s*:\s*none/i.test(match[1])) return false;
-  const tokens = html.slice(0, match.index).match(/<\/?[a-zA-Z][^>]*>/g) || [];
-  const hidden = [];
-  for (const token of tokens) {
-    if (token.startsWith('</')) {
-      hidden.pop();
-      continue;
-    }
-    if (token.endsWith('/>') || token.startsWith('<!')) continue;
-    hidden.push(/display\s*:\s*none/i.test(token));
-  }
-  return hidden.every((flag) => !flag);
-}
-
 function homepageHtml() {
-  const built = join(distDir, 'index.html');
-  if (existsSync(built)) {
-    const html = readFileSync(built, 'utf8');
-    if (hasVisibleTitle(html)) return html;
-  }
   return renderHomepage(root, trackerVersion);
 }
 
