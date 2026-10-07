@@ -15,28 +15,38 @@ The original service returns only:
 
 It does **not** expose `page_uv`, so that column is intentionally empty.
 
-| File | Site |
-| --- | --- |
-| `busuanzi-www.csv` | `https://www.crzliang.cn/` |
-| `busuanzi-blog.csv` | `https://blog.crzliang.cn/` |
+## Local files
 
-## Columns
+The CSV files and progress file are **local only** and are ignored by git:
 
-| Column | Meaning |
-| --- | --- |
-| `type` | `site` for the site-level row, `page` for a page row |
-| `site_id` | Kestrel site id (`www` or `blog`) |
-| `url` | Full page URL |
-| `path` | URL path plus query string |
-| `site_pv` | Site PV after removing migration reads |
-| `site_uv` | Site UV after removing migration reads |
-| `page_pv` | Page PV after removing migration reads |
-| `page_uv` | Always empty: original busuanzi has no page UV |
-| `captured_at` | Snapshot timestamp |
-| `note` | Adjustment / limitation note |
+```text
+docs/data/busuanzi-www.csv
+docs/data/busuanzi-blog.csv
+docs/data/busuanzi-blog.progress.json
+```
 
-## Adjustment
+Generate them locally with:
 
-Reading the original busuanzi endpoint increments its counters. The CSV values
-subtract the reads made during migration. The progress file
-`busuanzi-blog.progress.json` keeps the raw per-page values for auditing.
+```bash
+node scripts/fetch-busuanzi.mjs
+```
+
+## Import into Kestrel
+
+`edge-functions/v1/import.ts` exposes an import endpoint guarded by
+`KESTREL_IMPORT_TOKEN`. Set that variable in the EdgeOne project, then run:
+
+```bash
+KESTREL_IMPORT_TOKEN=... node scripts/import-busuanzi.mjs
+```
+
+The importer writes:
+
+```text
+spv_<site>
+suv_<site>
+ppv_<site>_<sha256(path)>
+```
+
+`page_uv` and `seen_*` dedupe markers are not imported because the original
+busuanzi service does not expose them.

@@ -24,3 +24,7 @@ tracking-script/stats.html
 
 # Local mock counters (generated, not tracked)
 .kestrel/
+
+# Local busuanzi snapshots
+docs/data/*.csv
+docs/data/*.progress.json

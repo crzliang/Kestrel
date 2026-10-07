@@ -21,6 +21,7 @@ import {
   onRequestGet as trackGet,
   onRequestPost as trackPost,
 } from '../edge-functions/v1/track';
+import { onRequestPost as importPost } from '../edge-functions/v1/import';
 import {
   findSiteByHost,
   getSite,
@@ -823,6 +824,58 @@ async function testHomepage(): Promise<void> {
   );
 }
 
+
+async function testImport(): Promise<void> {
+  console.log('\n[import]');
+  const { blog } = requireConfiguredSites();
+  const body = JSON.stringify({
+    siteId: blog.id,
+    sitePv: 4607,
+    siteUv: 3167,
+    pages: [
+      { path: '/', pagePv: 1217 },
+      { path: '/imported', pagePv: 7 },
+    ],
+  });
+  const makeRequest = () =>
+    new Request('https://not-the-host.invalid/v1/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token' },
+      body,
+    });
+
+  const disabled = await importPost(
+    ctx(makeRequest()),
+  );
+  assert(disabled.status === 503, 'import is disabled without an env token');
+
+  const wrongToken = await importPost({
+    ...ctx(
+      new Request('https://not-the-host.invalid/v1/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer wrong' },
+        body,
+      }),
+    ),
+    env: { KESTREL_IMPORT_TOKEN: 'test-token' },
+  });
+  assert(wrongToken.status === 401, 'import rejects a wrong token');
+
+  const imported = await importPost({
+    ...ctx(makeRequest()),
+    env: { KESTREL_IMPORT_TOKEN: 'test-token' },
+  });
+  assert(imported.status === 200, 'import accepts the configured token');
+
+  const root = await readPublic(blog.id, '/');
+  assert(root.body.site_pv === 4607, 'import overwrites site_pv');
+  assert(root.body.site_uv === 3167, 'import overwrites site_uv');
+  assert(root.body.page_pv === 1217, 'import writes page_pv');
+
+  const extra = await readPublic(blog.id, '/imported');
+  assert(extra.body.page_pv === 7, 'import writes a second page_pv');
+}
+
 async function testTrackerBudget(): Promise<void> {
   console.log('\n[tracker size]');
   const file = join(root, 'tracking-script/dist/kestrel.js');
@@ -851,6 +904,7 @@ async function main(): Promise<void> {
   await testAllowlist();
   await testTrackerBudget();
   await testHomepage();
+  await testImport();
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
